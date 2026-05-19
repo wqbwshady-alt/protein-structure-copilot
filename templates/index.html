@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Protein Structure Copilot</title>
+
+  <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 34px;
+    }
+
+    h2 {
+      margin-top: 40px;
+    }
+
+    input {
+      padding: 10px;
+      width: 320px;
+      margin-top: 8px;
+    }
+
+    button, .download-btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 20px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .compare-btn {
+      background: #7c3aed;
+    }
+
+    .main-area {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(380px, 1fr);
+      gap: 24px;
+      margin-top: 30px;
+      align-items: start;
+    }
+
+    .viewer-box {
+      width: 100%;
+      height: 560px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      background: white;
+    }
+
+    #viewer {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .viewer-tools {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tool-btn {
+      background: #0f172a;
+      color: white;
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 13px;
+      margin-top: 0;
+    }
+
+    .tool-btn:hover {
+      background: #1e293b;
+    }
+
+    .ai-dashboard {
+      background: #0f172a;
+      color: white;
+      padding: 20px;
+      border-radius: 16px;
+      max-height: 560px;
+      overflow: auto;
+      box-shadow: 0 8px 24px rgba(15,23,42,0.25);
+    }
+
+    .ai-dashboard-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 18px;
+      letter-spacing: 0.3px;
+    }
+
+    .ai-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .ai-card h3 {
+      margin: 0 0 10px 0;
+      color: #60a5fa;
+      font-size: 16px;
+    }
+
+    .ai-card p,
+    .ai-card li {
+      color: #e5e7eb;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .ai-card ul {
+      margin: 0;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .hotspot-btn {
+      width: 100%;
+      text-align: left;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      color: white;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: 0.2s;
+      font-size: 14px;
+    }
+
+    .hotspot-btn:hover {
+      background: #334155;
+      transform: translateX(3px);
+    }
+
+    .hotspot-rank {
+      color: #f59e0b;
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    .raw-report {
+      margin-top: 14px;
+      background: #020617;
+      color: #cbd5e1;
+      padding: 14px;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .comparison-box {
+      background: #1e1b4b;
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      overflow: auto;
+      margin-top: 20px;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+    }
+
+    .placeholder {
+      margin-top: 30px;
+      padding: 30px;
+      background: #f9fafb;
+      border-radius: 12px;
+      color: #6b7280;
+    }
+
+    .error-box {
+      margin-top: 24px;
+      padding: 16px 18px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      color: #991b1b;
+      font-weight: bold;
+    }
+
+    .legend {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .yellow-dot,
+    .red-dot,
+    .green-dot,
+    .orange-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1px solid #999;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .yellow-dot {
+      background: yellow;
+    }
+
+    .red-dot {
+      background: red;
+    }
+
+    .green-dot {
+      background: limegreen;
+    }
+
+    .orange-dot {
+      background: orange;
+    }
+
+    .blue-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1px solid #999;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: #38bdf8;
+    }
+
+    .lime-dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1px solid #999;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: #a3e635;
+    }
+
+    .section-divider {
+      margin-top: 50px;
+      margin-bottom: 30px;
+      border-top: 2px solid #e5e7eb;
+    }
+
+    details summary {
+      cursor: pointer;
+      color: #93c5fd;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <h1>Protein Structure Copilot</h1>
+
+    <h2>Single Structure Analysis</h2>
+
+    <form action="/analyze" method="post" enctype="multipart/form-data">
+      <p>PDB 文件：</p>
+      <input type="file" name="pdb_file" required>
+
+      <p>Ligand 名称：</p>
+      <input type="text" name="ligand_name" placeholder="例如：MK1 / CLR" required>
+
+      <br>
+      <button type="submit">Analyze Structure</button>
+    </form>
+
+    {% if pdb_url %}
+
+      <div class="main-area">
+
+        <div>
+          <h2>3D Structure Viewer</h2>
+
+          <div class="viewer-box">
+            <div id="viewer"></div>
+          </div>
+
+          <div class="viewer-tools">
+            <button class="tool-btn" id="reset-view-btn">Reset View</button>
+            <button class="tool-btn" id="pocket-view-btn">Show Ligand Pocket</button>
+            <button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>
+          </div>
+
+          <div class="legend">
+            <div>
+              <span class="yellow-dot"></span>
+              Yellow = hydrophobic interaction lines
+            </div>
+
+            <div>
+              <span class="blue-dot"></span>
+              Blue = polar / possible H-bond lines
+            </div>
+
+            <div>
+              <span class="lime-dot"></span>
+              Lime = van der Waals interaction lines
+            </div>
+
+            <div>
+              <span class="orange-dot"></span>
+              Orange = AI hotspot residues
+            </div>
+
+            <div>
+              <span class="red-dot"></span>
+              Red = lost WT contact residues
+            </div>
+
+            <div>
+              <span class="green-dot"></span>
+              Green = gained mutant contact residues
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2>Analysis Result</h2>
+
+          <div class="ai-dashboard">
+            <div class="ai-dashboard-title">
+              AI Structural Dashboard
+            </div>
+
+            <div class="ai-card">
+              <h3>Pocket Type</h3>
+              <p>
+                AI-inferred pocket classification based on residue composition,
+                ligand contacts, and local interaction pattern.
+              </p>
+            </div>
+
+            <div class="ai-card">
+              <h3>Key Hotspot Residues</h3>
+              <ul id="hotspot-list">
+                <li>Detecting hotspot residues...</li>
+              </ul>
+            </div>
+
+            <div class="ai-card">
+              <h3>AI Structural Interpretation</h3>
+              <p>
+                {{ ai_html | safe }}
+              </p>
+            </div>
+
+            <details>
+              <summary>View full raw report</summary>
+              <div class="raw-report">{{ result_text }}</div>
+            </details>
+          </div>
+
+          {% if report_download_url %}
+            <a href="{{ report_download_url }}" class="download-btn">
+              Download Report
+            </a>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <script id="interaction-data" type="application/json">
+        {{ interaction_data | default([]) | tojson }}
+      </script>
+
+      <script id="lost-residues" type="application/json">
+        {{ lost_residues | default([]) | tojson }}
+      </script>
+
+      <script id="gained-residues" type="application/json">
+        {{ gained_residues | default([]) | tojson }}
+      </script>
+
+      <script id="hotspot-residues" type="application/json">
+        {{ hotspot_residues | default([]) | tojson }}
+      </script>
+
+      <script>
+        const pdbUrl =
+          "{{ pdb_url }}";
+
+        const ligandName =
+          {{ request.form.get('ligand_name', request.form.get('compare_ligand_name', '')) | tojson }};
+
+        const interactions = JSON.parse(
+          document.getElementById("interaction-data").textContent
+        );
+
+        const lostResidues = JSON.parse(
+          document.getElementById("lost-residues").textContent
+        );
+
+        const gainedResidues = JSON.parse(
+          document.getElementById("gained-residues").textContent
+        );
+
+        const hotspotResidues = JSON.parse(
+          document.getElementById("hotspot-residues").textContent
+        );
+
+        const hotspotList = document.getElementById("hotspot-list");
+
+        let viewer = null;
+
+        function interactionColor(interaction) {
+          return interaction.color || "yellow";
+        }
+
+        function applyBaseStyle() {
+          viewer.setStyle({}, {
+            cartoon: { color: "spectrum" }
+          });
+
+          viewer.setStyle(
+            { resn: ligandName },
+            {
+              stick: {
+                color: "red",
+                radius: 0.25
+              }
+            }
+          );
+
+          viewer.addStyle(
+            {
+              within: {
+                distance: 5,
+                sel: { resn: ligandName }
+              }
+            },
+            {
+              stick: {
+                color: "yellow",
+                radius: 0.18
+              }
+            }
+          );
+        }
+
+        function drawInteractionLines() {
+          interactions.forEach(interaction => {
+            viewer.addCylinder({
+              start: {
+                x: interaction.start[0],
+                y: interaction.start[1],
+                z: interaction.start[2]
+              },
+
+              end: {
+                x: interaction.end[0],
+                y: interaction.end[1],
+                z: interaction.end[2]
+              },
+
+              radius: 0.08,
+              color: interactionColor(interaction),
+              dashed: true
+            });
+          });
+        }
+
+        function drawHotspots() {
+          hotspotResidues.forEach(residue => {
+            viewer.setStyle(
+              {
+                chain: residue.chain_id,
+                resi: residue.res_id
+              },
+              {
+                stick: {
+                  color: "orange",
+                  radius: 0.45
+                },
+                sphere: {
+                  color: "orange",
+                  radius: 0.75
+                }
+              }
+            );
+
+            viewer.addResLabels(
+              {
+                chain: residue.chain_id,
+                resi: residue.res_id
+              },
+              {
+                fontColor: "black",
+                backgroundColor: "orange",
+                fontSize: 12,
+                showBackground: true
+              }
+            );
+          });
+        }
+
+        function drawMutationHighlights() {
+          lostResidues.forEach(residue => {
+            viewer.setStyle(
+              {
+                chain: residue.chain_id,
+                resi: residue.res_id
+              },
+              {
+                stick: {
+                  color: "red",
+                  radius: 0.35
+                }
+              }
+            );
+          });
+
+          gainedResidues.forEach(residue => {
+            viewer.setStyle(
+              {
+                chain: residue.chain_id,
+                resi: residue.res_id
+              },
+              {
+                stick: {
+                  color: "green",
+                  radius: 0.35
+                }
+              }
+            );
+          });
+        }
+
+        function redrawFullView() {
+          viewer.removeAllShapes();
+          viewer.removeAllLabels();
+
+          applyBaseStyle();
+          drawInteractionLines();
+          drawHotspots();
+          drawMutationHighlights();
+
+          viewer.zoomTo({ resn: ligandName });
+          viewer.render();
+          viewer.resize();
+        }
+
+        function focusResidue(residue) {
+          viewer.removeAllShapes();
+          viewer.removeAllLabels();
+
+          viewer.setStyle({}, {
+            cartoon: {
+              color: "lightgrey",
+              opacity: 0.32
+            }
+          });
+
+          viewer.setStyle(
+            { resn: ligandName },
+            {
+              stick: {
+                color: "yellow",
+                radius: 0.3
+              }
+            }
+          );
+
+          viewer.setStyle(
+            {
+              chain: residue.chain_id,
+              resi: residue.res_id
+            },
+            {
+              stick: {
+                color: "orange",
+                radius: 0.55
+              },
+              sphere: {
+                color: "orange",
+                radius: 1.0
+              }
+            }
+          );
+
+          viewer.addResLabels(
+            {
+              chain: residue.chain_id,
+              resi: residue.res_id
+            },
+            {
+              fontColor: "black",
+              backgroundColor: "orange",
+              fontSize: 14,
+              showBackground: true
+            }
+          );
+
+          interactions
+            .filter(interaction => {
+              return interaction.res_name === residue.res_name &&
+                     interaction.res_id === residue.res_id &&
+                     interaction.chain_id === residue.chain_id;
+            })
+            .forEach(interaction => {
+              viewer.addCylinder({
+                start: {
+                  x: interaction.start[0],
+                  y: interaction.start[1],
+                  z: interaction.start[2]
+                },
+                end: {
+                  x: interaction.end[0],
+                  y: interaction.end[1],
+                  z: interaction.end[2]
+                },
+                radius: 0.13,
+                color: interactionColor(interaction),
+                dashed: true
+              });
+            });
+
+          viewer.zoomTo({
+            chain: residue.chain_id,
+            resi: residue.res_id
+          });
+
+          viewer.render();
+        }
+
+        function focusHotspots() {
+          viewer.removeAllShapes();
+          viewer.removeAllLabels();
+
+          viewer.setStyle({}, {
+            cartoon: {
+              color: "lightgrey",
+              opacity: 0.25
+            }
+          });
+
+          viewer.setStyle(
+            { resn: ligandName },
+            {
+              stick: {
+                color: "yellow",
+                radius: 0.3
+              }
+            }
+          );
+
+          drawHotspots();
+          drawInteractionLines();
+
+          if (hotspotResidues.length > 0) {
+            const selections = hotspotResidues.map(residue => {
+              return {
+                chain: residue.chain_id,
+                resi: residue.res_id
+              };
+            });
+
+            viewer.zoomTo(selections);
+          } else {
+            viewer.zoomTo({ resn: ligandName });
+          }
+
+          viewer.render();
+        }
+
+        if (hotspotList) {
+          hotspotList.innerHTML = "";
+
+          if (hotspotResidues.length === 0) {
+            hotspotList.innerHTML = "<li>No hotspot residues detected.</li>";
+          } else {
+            hotspotResidues.forEach((residue, index) => {
+              const li = document.createElement("li");
+
+              const btn = document.createElement("button");
+              btn.className = "hotspot-btn";
+              btn.innerHTML =
+                `<span class="hotspot-rank">#${index + 1}</span>` +
+                `${residue.res_name}${residue.res_id} chain ${residue.chain_id} · ` +
+                `${residue.distance} Å · ${residue.interaction_type || "contact"}`;
+
+              btn.onclick = () => {
+                focusResidue(residue);
+              };
+
+              li.appendChild(btn);
+              hotspotList.appendChild(li);
+            });
+          }
+        }
+
+        fetch(pdbUrl)
+          .then(response => response.text())
+          .then(pdbData => {
+
+            viewer = $3Dmol.createViewer("viewer", {
+              backgroundColor: "white"
+            });
+
+            viewer.addModel(pdbData, "pdb");
+
+            redrawFullView();
+
+            const resetBtn = document.getElementById("reset-view-btn");
+            const pocketBtn = document.getElementById("pocket-view-btn");
+            const hotspotBtn = document.getElementById("hotspot-view-btn");
+
+            if (resetBtn) {
+              resetBtn.onclick = () => {
+                redrawFullView();
+              };
+            }
+
+            if (pocketBtn) {
+              pocketBtn.onclick = () => {
+                viewer.zoomTo({ resn: ligandName });
+                viewer.render();
+              };
+            }
+
+            if (hotspotBtn) {
+              hotspotBtn.onclick = () => {
+                focusHotspots();
+              };
+            }
+          });
+      </script>
+
+    {% endif %}
+
+    {% if result_text and not pdb_url and not comparison_text %}
+
+      <div class="error-box">{{ result_text }}</div>
+
+    {% endif %}
+
+    <div class="section-divider"></div>
+
+    <h2>Mutation Scan</h2>
+
+    <form action="/mutation_scan" method="post" enctype="multipart/form-data">
+
+      <p>PDB 文件：</p>
+      <input type="file" name="mutation_pdb_file" required>
+
+      <p>Ligand 名称：</p>
+      <input type="text"
+             name="mutation_ligand_name"
+             placeholder="例如：MK1 / CLR"
+             required>
+
+      <p>Mutation：</p>
+      <input type="text"
+             name="mutation_text"
+             placeholder="例如：R273H / K120A / Y220C"
+             required>
+
+      <p>Chain ID（可选）：</p>
+      <input type="text"
+             name="mutation_chain_id"
+             placeholder="例如：A">
+
+      <br>
+
+      <button type="submit" class="compare-btn">
+        Analyze Mutation
+      </button>
+
+    </form>
+
+    {% if mutation_scan_result %}
+
+      <h2>Mutation Analysis Result</h2>
+
+      <div class="ai-dashboard">
+        <div class="ai-dashboard-title">
+          Mutation Impact Summary
+        </div>
+
+        <div class="ai-card">
+          <h3>Mutation Overview</h3>
+          <p>
+            {{ mutation_scan_result.mutation }}
+            chain {{ mutation_scan_result.chain_id }}:
+            {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
+            →
+            {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
+          </p>
+          {% if mutation_scan_result.selection_note %}
+            <p>{{ mutation_scan_result.selection_note }}</p>
+          {% endif %}
+        </div>
+
+        <div class="ai-card">
+          <h3>Property Changes</h3>
+          <ul>
+            {% for name, value in mutation_scan_result.property_changes.items() %}
+              <li>{{ name }}: {{ value }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="ai-card">
+          <h3>Interaction Impact</h3>
+          <p>Possible loss:</p>
+          <ul>
+            {% for item in mutation_scan_result.interaction_impact.possible_loss %}
+              <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+            {% else %}
+              <li>None predicted by current rules.</li>
+            {% endfor %}
+          </ul>
+
+          <p>Possible gain:</p>
+          <ul>
+            {% for item in mutation_scan_result.interaction_impact.possible_gain %}
+              <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+            {% else %}
+              <li>None predicted by current rules.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="ai-card">
+          <h3>AI-style Mutation Interpretation</h3>
+          <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
+        </div>
+
+        <details>
+          <summary>View full mutation report</summary>
+          <div class="raw-report">{{ mutation_scan_text }}</div>
+        </details>
+      </div>
+
+    {% endif %}
+
+    <div class="section-divider"></div>
+
+    <h2>WT vs Mutant Comparison</h2>
+
+    <form action="/compare" method="post" enctype="multipart/form-data">
+
+      <p>WT PDB 文件：</p>
+      <input type="file" name="wt_file" required>
+
+      <p>Mutant PDB 文件：</p>
+      <input type="file" name="mut_file" required>
+
+      <p>Ligand 名称：</p>
+      <input type="text"
+             name="compare_ligand_name"
+             placeholder="例如：MK1 / CLR"
+             required>
+
+      <br>
+
+      <button type="submit" class="compare-btn">
+        Compare Mutation
+      </button>
+
+    </form>
+
+    {% if comparison_text %}
+
+      <h2>Mutation Comparison Result</h2>
+
+      <pre class="comparison-box">{{ comparison_text }}</pre>
+
+    {% endif %}
+
+    {% if not pdb_url and not comparison_text and not mutation_scan_result %}
+
+      <div class="placeholder">
+        上传 PDB 文件进行单结构分析、mutation scan，或者上传 WT + Mutant PDB 进行 mutation comparison。
+      </div>
+
+    {% endif %}
+
+  </div>
+</body>
+</html>

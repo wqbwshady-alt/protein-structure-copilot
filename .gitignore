@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+.env
+uploads/
+results/
+.DS_Store
