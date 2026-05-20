@@ -122,6 +122,10 @@ def health():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest" or
+        request.accept_mimetypes.best == "application/json"
+    )
     pdb_filename = request.form.get("pdb_filename", "").strip()
     pdb_file = request.files.get("pdb_file")
     ligand_name = request.form.get("ligand_name", "").strip().upper()
@@ -129,6 +133,12 @@ def analyze():
     if pdb_filename:
         pdb_path = os.path.join(UPLOAD_FOLDER, secure_filename(pdb_filename))
         if not os.path.isfile(pdb_path):
+            if wants_json:
+                return jsonify({
+                    "success": False,
+                    "error_text": "Fetched PDB file no longer available. Please re-fetch.",
+                    "ai_html": make_html("Fetched PDB file no longer available.")
+                })
             return render_index(
                 result_text="Fetched PDB file no longer available. Please re-fetch.",
                 ai_html=make_html("Fetched PDB file no longer available.")
@@ -136,22 +146,48 @@ def analyze():
     else:
         if not pdb_file or pdb_file.filename == "":
             error_text = "Please upload a PDB file."
+            if wants_json:
+                return jsonify({
+                    "success": False,
+                    "error_text": error_text,
+                    "ai_html": make_html(error_text)
+                })
             return render_index(result_text=error_text, ai_html=make_html(error_text))
 
         if not ligand_name:
             error_text = "Please enter ligand name, for example: MK1 / CLR."
+            if wants_json:
+                return jsonify({
+                    "success": False,
+                    "error_text": error_text,
+                    "ai_html": make_html(error_text)
+                })
             return render_index(result_text=error_text, ai_html=make_html(error_text))
 
         pdb_filename, pdb_path, error_text = save_uploaded_pdb(pdb_file)
 
         if error_text:
+            if wants_json:
+                return jsonify({
+                    "success": False,
+                    "error_text": error_text,
+                    "ai_html": make_html(error_text)
+                })
             return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     if not ligand_name:
         error_text = "Please enter ligand name, for example: MK1 / CLR."
+        if wants_json:
+            return jsonify({
+                "success": False,
+                "error_text": error_text,
+                "ai_html": make_html(error_text)
+            })
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     result = _build_analyze_result(pdb_path, pdb_filename, ligand_name)
+    if wants_json:
+        return jsonify(result)
     if not result["success"]:
         return render_index(
             result_text=result["error_text"],

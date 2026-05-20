@@ -74,6 +74,58 @@ class AppTest(unittest.TestCase):
         self.assertIn(b"Available ligand candidates:", response.data)
         self.assertIn(b"MK1", response.data)
 
+    def test_analyze_json_upload_uses_analyze_route(self):
+        pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                with open(pdb_path, "rb") as pdb_file:
+                    response = self.client.post(
+                        "/analyze",
+                        data={
+                            "ligand_name": "MK1",
+                            "pdb_file": (BytesIO(pdb_file.read()), "1HSG.pdb")
+                        },
+                        content_type="multipart/form-data",
+                        headers={
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("result_text", data)
+        self.assertIn("pdb_url", data)
+
+    def test_analyze_json_fetched_filename_uses_analyze_route(self):
+        pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            fetched_name = "RCSB_1HSG_test.pdb"
+            fetched_path = os.path.join(upload_dir, fetched_name)
+            with open(pdb_path, "rb") as src, open(fetched_path, "wb") as dst:
+                dst.write(src.read())
+
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                response = self.client.post(
+                    "/analyze",
+                    data={
+                        "ligand_name": "MK1",
+                        "pdb_filename": fetched_name
+                    },
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn(f"/uploads/{fetched_name}", data["pdb_url"])
+
     def test_mutation_scan_route(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
 

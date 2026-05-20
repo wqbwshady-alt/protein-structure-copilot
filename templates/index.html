@@ -997,7 +997,7 @@
 
       <!-- Tab: Single Structure Analysis -->
       <div class="tab-panel active" id="tab-single">
-        <form action="/analyze" method="post" enctype="multipart/form-data" class="analysis-form">
+        <form action="/analyze" method="post" enctype="multipart/form-data" class="analysis-form" novalidate>
           <input type="hidden" name="pdb_filename" id="pdb-filename-hidden" value="">
 
           <div class="form-group">
@@ -1036,7 +1036,7 @@
                 </div>
               </div>
               <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="pdb_file" accept=".pdb" required>
+              <input type="file" name="pdb_file" accept=".pdb">
             </div>
             <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
             <div class="file-error">Only .pdb files are supported.</div>
@@ -1715,7 +1715,7 @@
       }
 
       // ===== Unified analysis file state =====
-      var analysisFile = {
+      var analysisFile = window.PSCAnalysisFile = {
         name: null,
         size: null,
         source: null,      // 'upload' or 'rcsb'
@@ -1729,6 +1729,7 @@
           name: null, size: null, source: null,
           fileObject: null, pdbFilename: null, ready: false
         }, state);
+        window.PSCAnalysisFile = analysisFile;
 
         console.log("[PSC] analysisFile updated:", {
           name: analysisFile.name,
@@ -1743,8 +1744,8 @@
         var zone = document.getElementById("drop-zone-analyze");
         var fileNameDisplay = zone ? zone.querySelector(".file-card-filename") : null;
         var fileSizeDisplay = zone ? zone.querySelector(".file-card-size") : null;
-        var warning = zone ? zone.querySelector(".file-size-warning") : null;
-        var error = zone ? zone.querySelector(".file-error") : null;
+        var warning = document.querySelector("#tab-single .file-size-warning");
+        var error = document.querySelector("#tab-single .file-error");
         var hiddenFname = document.getElementById("pdb-filename-hidden");
 
         if (!zone) return;
@@ -1757,6 +1758,9 @@
           if (warning) warning.style.display = "none";
           if (error) error.style.display = "none";
           if (hiddenFname) hiddenFname.value = analysisFile.pdbFilename || "";
+        } else {
+          zone.classList.remove("has-file");
+          if (hiddenFname) hiddenFname.value = "";
         }
 
         // Update status indicator
@@ -1783,21 +1787,25 @@
             zone.classList.add("has-error");
             zone.classList.remove("has-file");
             if (error) error.style.display = "block";
-            setAnalysisFile({ ready: false });
+            if (zone.id === "drop-zone-analyze") {
+              setAnalysisFile({ ready: false });
+            }
             return;
           }
 
           zone.classList.remove("has-error");
           var sizeStr = formatSize(file.size);
 
-          setAnalysisFile({
-            name: file.name,
-            size: sizeStr,
-            source: "upload",
-            fileObject: file,
-            pdbFilename: null,
-            ready: true
-          });
+          if (zone.id === "drop-zone-analyze") {
+            setAnalysisFile({
+              name: file.name,
+              size: sizeStr,
+              source: "upload",
+              fileObject: file,
+              pdbFilename: null,
+              ready: true
+            });
+          }
 
           if (file.size > 10 * 1024 * 1024 && warning) {
             warning.style.display = "block";
@@ -1809,7 +1817,9 @@
           if (warning) warning.style.display = "none";
           if (error) error.style.display = "none";
           input.value = "";
-          setAnalysisFile({ ready: false });
+          if (zone.id === "drop-zone-analyze") {
+            setAnalysisFile({ ready: false });
+          }
         }
 
         input.addEventListener("change", function() {
@@ -1883,6 +1893,9 @@
               fetch(data.pdb_url)
                 .then(function(r) { return r.blob(); })
                 .then(function(blob) {
+                  if (!blob || blob.size === 0) {
+                    throw new Error("Downloaded PDB content is empty");
+                  }
                   var pdbFile = new File([blob], pdbId + ".pdb", { type: "chemical/x-pdb" });
                   var fileInput = analyzeDropZone.querySelector('input[type="file"]');
                   if (fileInput) {
@@ -1996,6 +2009,7 @@
 
       function showError(msg) {
         console.error("[PSC] Analysis error:", msg);
+        renderErrorResult(msg);
         clearStageTimers();
         progressBarFill.style.width = "100%";
         progressBarFill.style.background = "#ef4444";
@@ -2027,6 +2041,30 @@
             progressTitle.textContent = "Analyzing Structure";
           }, 400);
         }, 4000);  // longer display for user to read
+      }
+
+      function renderErrorResult(msg) {
+        function esc(s) {
+          return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        if (!resultsContainer) {
+          resultsContainer = document.getElementById("results-container");
+        }
+
+        var container = resultsContainer || document.querySelector(".content");
+        if (!container) return;
+
+        var existing = container.querySelector(".main-area");
+        if (existing) existing.remove();
+
+        var errorBox = container.querySelector(".error-box");
+        if (errorBox) errorBox.remove();
+
+        var placeholder = container.querySelector(".placeholder");
+        if (placeholder) placeholder.style.display = "none";
+
+        container.insertAdjacentHTML("beforeend", '<div class="error-box">' + esc(msg) + '</div>');
       }
 
       function buildResultHTML(data) {
@@ -2390,11 +2428,31 @@
         showError("Network error: " + (err.message || "Could not reach server"));
       }
 
+      function getAnalysisFileState() {
+        return window.PSCAnalysisFile || {
+          name: null,
+          size: null,
+          source: null,
+          fileObject: null,
+          pdbFilename: null,
+          ready: false
+        };
+      }
+
+      function showInlineAnalysisError(msg) {
+        var analysisStatus = document.getElementById("analysis-status");
+        var fetchStatus = document.getElementById("fetch-status");
+        var html = '<span style="color:#ef4444;">' + msg + '</span>';
+        if (analysisStatus) analysisStatus.innerHTML = html;
+        if (fetchStatus) fetchStatus.innerHTML = html;
+      }
+
       // Intercept Single Analysis form submit
       var singleForm = document.querySelector("#tab-single form.analysis-form");
       console.log("[PSC] singleForm found:", !!singleForm);
 
       if (singleForm) {
+        singleForm.setAttribute("novalidate", "novalidate");
         singleForm.addEventListener("submit", function(e) {
           e.preventDefault();
           console.log("[PSC] Form submit intercepted");
@@ -2402,6 +2460,7 @@
           var btn = singleForm.querySelector("button[type=submit]");
           var ligandInput = document.getElementById("ligand-analyze");
           var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
+          var analysisFile = getAnalysisFileState();
 
           console.log("[PSC] State:", {
             analysisFile: {
@@ -2416,20 +2475,33 @@
 
           // Validate
           if (!analysisFile.ready) {
-            var statusEl = document.getElementById("fetch-status");
-            if (statusEl) {
-              statusEl.innerHTML = '<span style="color:#ef4444;">Please upload a PDB file or fetch from RCSB first.</span>';
-            }
+            showInlineAnalysisError("Please upload a PDB file or fetch from RCSB first.");
             console.log("[PSC] ABORT: analysisFile not ready");
             return;
           }
 
           if (!ligandName) {
-            var statusEl2 = document.getElementById("fetch-status");
-            if (statusEl2) {
-              statusEl2.innerHTML = '<span style="color:#ef4444;">Please enter a ligand name.</span>';
-            }
+            showInlineAnalysisError("Please enter a ligand name.");
             console.log("[PSC] ABORT: no ligand name");
+            return;
+          }
+
+          // Build FormData with unified analysisFile before changing UI state.
+          var fd = new FormData();
+          fd.append("ligand_name", ligandName);
+          if (analysisFile.fileObject) {
+            fd.append("pdb_file", analysisFile.fileObject, analysisFile.name);
+            console.log("[PSC] Appended pdb_file:", analysisFile.name, "size:", analysisFile.fileObject.size);
+          }
+          if (analysisFile.pdbFilename) {
+            fd.append("pdb_filename", analysisFile.pdbFilename);
+            console.log("[PSC] Appended pdb_filename:", analysisFile.pdbFilename);
+          }
+          console.log("[PSC] FormData has pdb_file:", fd.has("pdb_file"), "has pdb_filename:", fd.has("pdb_filename"));
+
+          if (!fd.has("pdb_file") && !fd.has("pdb_filename")) {
+            showInlineAnalysisError("PDB file state is incomplete. Please upload or fetch the file again.");
+            console.log("[PSC] ABORT: FormData missing pdb_file and pdb_filename");
             return;
           }
 
@@ -2460,21 +2532,12 @@
           setStage(0, "active");
           advanceStage();
 
-          // Build FormData with unified analysisFile
-          var fd = new FormData();
-          fd.append("ligand_name", ligandName);
-          if (analysisFile.fileObject) {
-            fd.append("pdb_file", analysisFile.fileObject, analysisFile.name);
-            console.log("[PSC] Appended pdb_file:", analysisFile.name, "size:", analysisFile.fileObject.size);
-          }
-          if (analysisFile.pdbFilename) {
-            fd.append("pdb_filename", analysisFile.pdbFilename);
-            console.log("[PSC] Appended pdb_filename:", analysisFile.pdbFilename);
-          }
-          console.log("[PSC] FormData has pdb_file:", fd.has("pdb_file"), "has pdb_filename:", fd.has("pdb_filename"));
-
-          fetch("/analyze_async", {
+          fetch("/analyze", {
             method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "X-Requested-With": "XMLHttpRequest"
+            },
             body: fd
           })
             .then(function(resp) {
