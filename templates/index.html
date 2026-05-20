@@ -149,6 +149,111 @@
       50% { opacity: 0.8; }
     }
 
+    /* Recent analyses */
+    .recent-section {
+      margin-top: 32px;
+      padding: 20px 24px;
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+    }
+
+    .recent-section h3 {
+      margin: 0 0 16px 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .recent-section h3 .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      display: inline-block;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    .recent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #cbd5e1;
+      background: rgba(255,255,255,0.03);
+      transition: background 0.2s;
+      overflow: hidden;
+    }
+
+    .recent-item:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .recent-item .ri-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .ri-type.single { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .ri-type.mutation { background: rgba(168,85,247,0.2); color: #c084fc; }
+    .ri-type.comparison { background: rgba(34,197,94,0.2); color: #4ade80; }
+
+    .recent-item .ri-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+    }
+
+    .recent-item .ri-pdb {
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recent-item .ri-detail {
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .recent-item .ri-time {
+      color: #64748b;
+      font-size: 12px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .recent-skeleton .ri-skel {
+      background: rgba(255,255,255,0.06);
+      border-radius: 6px;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
     .dark-mode-toggle {
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.15);
@@ -1070,8 +1175,8 @@
           <h1>Protein Structure Copilot</h1>
           <div class="stats-counter skeleton" id="stats-counter">
             <span class="counter-icon">🧬</span>
+            Total analyses run:
             <span class="counter-value">0</span>
-            analyses performed
           </div>
           <p style="margin-top: 12px;">Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
         </div>
@@ -1337,6 +1442,18 @@
       {% elif comparison_text %}
         {% set result_mode = 'comparison' %}
       {% endif %}
+
+      <!-- Recent Analyses -->
+      <div class="recent-section recent-skeleton" id="recent-section">
+        <h3><span class="dot"></span> Recent Analyses</h3>
+        <div class="recent-list" id="recent-list">
+          <div class="recent-item"><span class="ri-skel" style="width:60%;height:14px;"></span></div>
+          <div class="recent-item"><span class="ri-skel" style="width:45%;height:14px;"></span></div>
+          <div class="recent-item"><span class="ri-skel" style="width:55%;height:14px;"></span></div>
+          <div class="recent-item"><span class="ri-skel" style="width:40%;height:14px;"></span></div>
+          <div class="recent-item"><span class="ri-skel" style="width:50%;height:14px;"></span></div>
+        </div>
+      </div>
 
       <div id="results-root" data-result-mode="{{ result_mode or 'empty' }}">
       {% if pdb_url %}
@@ -3198,6 +3315,7 @@
           if (window.PSCTabState) {
             window.PSCTabState.save(window.PSCTabState.getActiveTabId(), data);
           }
+          if (window.PSCRefreshStats) window.PSCRefreshStats();
           setTimeout(function() {
             initViewerFromData(data);
           }, 150);
@@ -3596,12 +3714,17 @@
     })();
   </script>
 
-  <!-- Stats counter -->
+  <!-- Stats + Recent Analyses -->
   <script>
     (function() {
+      var lastTotal = 0;
+      var refreshTimer = null;
+
       function animateNumber(el, target) {
-        var start = 0;
-        var duration = 1400;
+        var current = parseInt(el.textContent.replace(/,/g, ""), 10) || 0;
+        if (current === target) return;
+        var start = current;
+        var duration = 800;
         var startTime = null;
 
         function step(timestamp) {
@@ -3609,8 +3732,8 @@
           var elapsed = timestamp - startTime;
           var progress = Math.min(elapsed / duration, 1);
           var eased = 1 - Math.pow(1 - progress, 3);
-          var current = Math.floor(start + (target - start) * eased);
-          el.textContent = current.toLocaleString();
+          var val = Math.floor(start + (target - start) * eased);
+          el.textContent = val.toLocaleString();
           if (progress < 1) {
             requestAnimationFrame(step);
           }
@@ -3619,8 +3742,91 @@
         requestAnimationFrame(step);
       }
 
+      function timeAgo(isoString) {
+        var then = new Date(isoString);
+        var now = new Date();
+        var seconds = Math.floor((now - then) / 1000);
+        if (seconds < 60) return "just now";
+        var minutes = Math.floor(seconds / 60);
+        if (minutes === 1) return "1 min ago";
+        if (minutes < 60) return minutes + " min ago";
+        var hours = Math.floor(minutes / 60);
+        if (hours === 1) return "1 hour ago";
+        if (hours < 24) return hours + " hours ago";
+        var days = Math.floor(hours / 24);
+        if (days === 1) return "1 day ago";
+        return days + " days ago";
+      }
+
+      function typeLabel(type) {
+        if (type === "single") return "single analysis";
+        if (type === "mutation") return "mutation scan";
+        if (type === "comparison") return "comparison";
+        return type;
+      }
+
+      function typeCssClass(type) {
+        if (type === "single") return "single";
+        if (type === "mutation") return "mutation";
+        if (type === "comparison") return "comparison";
+        return "";
+      }
+
+      function extractDisplayName(pdbName) {
+        if (!pdbName) return "";
+        // For RCSB files: "RCSB_1HSG_97d9aa14.pdb" → "1HSG"
+        var m = pdbName.match(/^RCSB_([A-Za-z0-9]{4})_/);
+        if (m) return m[1];
+        // For comparison: "WT_1HSG.pdb vs MUT_1HSG.pdb" → "WT vs MUT"
+        if (pdbName.indexOf(" vs ") !== -1) {
+          return pdbName.replace(/\.pdb/g, "");
+        }
+        // For other prefixed files: strip prefix
+        return pdbName.replace(/\.pdb$/i, "");
+      }
+
+      function buildDetail(entry) {
+        var parts = [];
+        if (entry.ligand_name) parts.push(entry.ligand_name);
+        if (entry.mutation) parts.push(entry.mutation);
+        if (entry.mode === "protein_only") parts.push("protein-only");
+        return parts.join(" · ") || "";
+      }
+
+      function loadRecent() {
+        fetch("/api/recent_analyses")
+          .then(function(r) { return r.json(); })
+          .then(function(records) {
+            var section = document.getElementById("recent-section");
+            var list = document.getElementById("recent-list");
+            if (!section || !list) return;
+
+            section.classList.remove("recent-skeleton");
+
+            if (!records.length) {
+              list.innerHTML = '<div class="recent-item" style="color:#64748b;">No analyses yet. Run your first analysis above.</div>';
+              return;
+            }
+
+            var html = "";
+            records.forEach(function(entry) {
+              html +=
+                '<div class="recent-item">' +
+                  '<span class="ri-type ' + typeCssClass(entry.type) + '">' + typeLabel(entry.type) + '</span>' +
+                  '<span class="ri-body">' +
+                    '<span class="ri-pdb" title="' + (entry.pdb_name || "") + '">' + extractDisplayName(entry.pdb_name) + '</span>' +
+                    '<span class="ri-detail">' + buildDetail(entry) + '</span>' +
+                  '</span>' +
+                  '<span class="ri-time">' + timeAgo(entry.timestamp) + '</span>' +
+                '</div>';
+            });
+            list.innerHTML = html;
+          })
+          .catch(function() {});
+      }
+
       function loadStats() {
-        fetch("/stats")
+        fetch("/api/stats")
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var counter = document.getElementById("stats-counter");
@@ -3628,14 +3834,26 @@
             var valueEl = counter.querySelector(".counter-value");
             if (!valueEl) return;
             counter.classList.remove("skeleton");
-            animateNumber(valueEl, data.total_analyses || 0);
+            var target = data.total_analyses || 0;
+            animateNumber(valueEl, target);
+            lastTotal = target;
           })
-          .catch(function() {
-            // Stats unavailable — leave skeleton
-          });
+          .catch(function() {});
       }
 
-      loadStats();
+      function refreshBoth() {
+        loadStats();
+        loadRecent();
+      }
+
+      // Initial load
+      refreshBoth();
+
+      // Auto-refresh every 10 seconds
+      refreshTimer = setInterval(refreshBoth, 10000);
+
+      // Expose refresh hook for after-analysis refresh
+      window.PSCRefreshStats = refreshBoth;
     })();
   </script>
 </body>

@@ -26,7 +26,7 @@ from analysis_core import (
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from services.mutation_scan import MutationScanError, analyze_mutation_scan
-from services.stats import get_stats, increment_analysis, increment_comparison, increment_mutation_scan
+from services.stats import get_stats, get_recent, record_analysis
 
 
 load_dotenv()
@@ -187,9 +187,25 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/stats", methods=["GET"])
+def api_stats():
+    return jsonify(get_stats())
+
+
+@app.route("/api/recent_analyses", methods=["GET"])
+def api_recent_analyses():
+    return jsonify(get_recent())
+
+
 @app.route("/stats", methods=["GET"])
 def stats():
     return jsonify(get_stats())
+
+
+def _detect_source(filename):
+    if filename and filename.startswith("RCSB_"):
+        return "rcsb"
+    return "local"
 
 
 @app.route("/analyze", methods=["POST"])
@@ -426,7 +442,12 @@ def _build_protein_only_result(pdb_path, filename):
         json.dumps(summary, indent=2)
     )
 
-    increment_analysis()
+    record_analysis({
+        "type": "single",
+        "pdb_name": filename,
+        "source": _detect_source(filename),
+        "mode": "protein_only",
+    })
 
     return {
         "success": True,
@@ -506,7 +527,13 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         csv_buf.getvalue()
     )
 
-    increment_analysis()
+    record_analysis({
+        "type": "single",
+        "pdb_name": filename,
+        "ligand_name": ligand_name,
+        "source": _detect_source(filename),
+        "mode": "ligand",
+    })
 
     return {
         "success": True,
@@ -625,7 +652,13 @@ def compare():
         comparison_text
     )
 
-    increment_comparison()
+    record_analysis({
+        "type": "comparison",
+        "pdb_name": f"{wt_filename} vs {mut_filename}",
+        "ligand_name": ligand_name,
+        "source": _detect_source(wt_filename),
+        "mode": "comparison",
+    })
 
     result = {
         "success": True,
@@ -705,7 +738,14 @@ def mutation_scan():
 
     mutation_scan_text = build_mutation_scan_report(mutation_result)
 
-    increment_mutation_scan()
+    record_analysis({
+        "type": "mutation",
+        "pdb_name": filename,
+        "ligand_name": ligand_name,
+        "mutation": mutation_text,
+        "source": _detect_source(filename),
+        "mode": "mutation",
+    })
 
     result = {
         "success": True,
