@@ -112,7 +112,13 @@ def _is_legacy_local_dev_entry(entry):
 
 def _remove_legacy_local_dev_artifacts(stats):
     legacy_count = sum(1 for entry in stats["recent_analyses"] if _is_legacy_local_dev_entry(entry))
-    if legacy_count == 0:
+    has_legacy_counter_only = (
+        stats["total_analyses"] == LEGACY_LOCAL_DEV_TOTAL and
+        str(stats.get("last_updated") or "").startswith("2026-05-20T13:28:") and
+        not stats["recent_analyses"]
+    )
+
+    if legacy_count == 0 and not has_legacy_counter_only:
         return stats
 
     cleaned_recent = [
