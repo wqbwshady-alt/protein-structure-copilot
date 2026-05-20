@@ -1049,6 +1049,8 @@
             <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
           </div>
 
+          <div id="analysis-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
+
           <button type="submit" class="btn">
             <span class="btn-label">Analyze Structure</span>
           </button>
@@ -1712,48 +1714,102 @@
         return (bytes / (1024 * 1024)).toFixed(1) + " MB";
       }
 
+      // ===== Unified analysis file state =====
+      var analysisFile = {
+        name: null,
+        size: null,
+        source: null,      // 'upload' or 'rcsb'
+        fileObject: null,  // File object for FormData
+        pdbFilename: null, // RCSB filename for server-side path
+        ready: false
+      };
+
+      function setAnalysisFile(state) {
+        Object.assign(analysisFile, {
+          name: null, size: null, source: null,
+          fileObject: null, pdbFilename: null, ready: false
+        }, state);
+
+        console.log("[PSC] analysisFile updated:", {
+          name: analysisFile.name,
+          size: analysisFile.size,
+          source: analysisFile.source,
+          hasFileObject: !!analysisFile.fileObject,
+          pdbFilename: analysisFile.pdbFilename,
+          ready: analysisFile.ready
+        });
+
+        // Sync DOM: drop zone UI
+        var zone = document.getElementById("drop-zone-analyze");
+        var fileNameDisplay = zone ? zone.querySelector(".file-card-filename") : null;
+        var fileSizeDisplay = zone ? zone.querySelector(".file-card-size") : null;
+        var warning = zone ? zone.querySelector(".file-size-warning") : null;
+        var error = zone ? zone.querySelector(".file-error") : null;
+        var hiddenFname = document.getElementById("pdb-filename-hidden");
+
+        if (!zone) return;
+
+        if (analysisFile.ready) {
+          zone.classList.add("has-file");
+          zone.classList.remove("has-error");
+          if (fileNameDisplay) fileNameDisplay.textContent = analysisFile.name || "";
+          if (fileSizeDisplay) fileSizeDisplay.textContent = analysisFile.size || "";
+          if (warning) warning.style.display = "none";
+          if (error) error.style.display = "none";
+          if (hiddenFname) hiddenFname.value = analysisFile.pdbFilename || "";
+        }
+
+        // Update status indicator
+        var statusEl = document.getElementById("analysis-status");
+        if (statusEl) {
+          if (analysisFile.ready) {
+            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for analysis</span>';
+          } else {
+            statusEl.innerHTML = '';
+          }
+        }
+      }
+
       function setupDropZone(zone) {
         var input = zone.querySelector('input[type="file"]');
-        var fileNameDisplay = zone.querySelector(".file-card-filename");
-        var fileSizeDisplay = zone.querySelector(".file-card-size");
         var removeBtn = zone.querySelector(".remove-file-btn");
         var warning = zone.querySelector(".file-size-warning");
         var error = zone.querySelector(".file-error");
 
         function handleFile(file) {
-          zone.classList.remove("has-error", "drag-over");
-          warning.style.display = "none";
-          error.style.display = "none";
-
           if (!file) return;
 
           if (!file.name.toLowerCase().endsWith(".pdb")) {
             zone.classList.add("has-error");
             zone.classList.remove("has-file");
-            error.style.display = "block";
+            if (error) error.style.display = "block";
+            setAnalysisFile({ ready: false });
             return;
           }
 
-          zone.classList.add("has-file");
-          fileNameDisplay.textContent = file.name;
-          fileSizeDisplay.textContent = formatSize(file.size);
+          zone.classList.remove("has-error");
+          var sizeStr = formatSize(file.size);
 
-          // Clear RCSB-fetched filename so local upload takes priority
-          var hiddenFname = document.getElementById("pdb-filename-hidden");
-          if (hiddenFname) hiddenFname.value = "";
+          setAnalysisFile({
+            name: file.name,
+            size: sizeStr,
+            source: "upload",
+            fileObject: file,
+            pdbFilename: null,
+            ready: true
+          });
 
-          if (file.size > 10 * 1024 * 1024) {
+          if (file.size > 10 * 1024 * 1024 && warning) {
             warning.style.display = "block";
           }
         }
 
         function removeFile() {
           zone.classList.remove("has-file", "has-error");
-          warning.style.display = "none";
-          error.style.display = "none";
+          if (warning) warning.style.display = "none";
+          if (error) error.style.display = "none";
           input.value = "";
-          var hiddenFname = document.getElementById("pdb-filename-hidden");
-          if (hiddenFname) hiddenFname.value = "";
+          setAnalysisFile({ ready: false });
         }
 
         input.addEventListener("change", function() {
@@ -1819,34 +1875,48 @@
               fetchBtn.disabled = false;
               if (!data.success) {
                 fetchStatus.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
+                setAnalysisFile({ ready: false });
                 return;
               }
 
-              fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
+              // Download PDB content and create a File object
+              fetch(data.pdb_url)
+                .then(function(r) { return r.blob(); })
+                .then(function(blob) {
+                  var pdbFile = new File([blob], pdbId + ".pdb", { type: "chemical/x-pdb" });
+                  var fileInput = analyzeDropZone.querySelector('input[type="file"]');
+                  if (fileInput) {
+                    var dt = new DataTransfer();
+                    dt.items.add(pdbFile);
+                    fileInput.files = dt.files;
+                  }
 
-              // Auto-populate drop zone
-              var fileInput = analyzeDropZone.querySelector('input[type="file"]');
-              var fileNameDisplay = analyzeDropZone.querySelector(".file-card-filename");
-              var fileSizeDisplay = analyzeDropZone.querySelector(".file-card-size");
+                  // Update unified state
+                  setAnalysisFile({
+                    name: pdbId + ".pdb",
+                    size: formatSize(blob.size),
+                    source: "rcsb",
+                    fileObject: pdbFile,
+                    pdbFilename: data.filename,
+                    ready: true
+                  });
 
-              analyzeDropZone.classList.remove("has-error");
-              analyzeDropZone.classList.add("has-file");
-              fileNameDisplay.textContent = pdbId + ".pdb";
-              fileSizeDisplay.textContent = "Fetched from RCSB PDB";
+                  fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
 
-              // Store the filename, clear file input to avoid conflict
-              var hiddenInput = document.getElementById("pdb-filename-hidden");
-              if (hiddenInput) hiddenInput.value = data.filename;
-              if (fileInput) fileInput.value = "";
-
-              if (data.ligands && data.ligands.length > 0) {
-                var ligandInput = document.getElementById("ligand-analyze");
-                var suggestions = data.ligands.slice(0, 6).join(", ");
-                fetchStatus.innerHTML += ' <span style="color:#64748b;">Ligands: ' + suggestions + '</span>';
-                if (ligandInput && !ligandInput.value.trim() && data.ligands.length === 1) {
-                  ligandInput.value = data.ligands[0];
-                }
-              }
+                  if (data.ligands && data.ligands.length > 0) {
+                    var ligandInput = document.getElementById("ligand-analyze");
+                    var suggestions = data.ligands.slice(0, 6).join(", ");
+                    fetchStatus.innerHTML += ' <span style="color:#64748b;">Ligands: ' + suggestions + '</span>';
+                    if (ligandInput && !ligandInput.value.trim() && data.ligands.length === 1) {
+                      ligandInput.value = data.ligands[0];
+                    }
+                  }
+                })
+                .catch(function(err) {
+                  console.error("[PSC] Failed to download PDB content:", err);
+                  fetchStatus.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
+                  setAnalysisFile({ ready: false });
+                });
             })
             .catch(function(err) {
               fetchBtn.disabled = false;
@@ -2331,27 +2401,26 @@
 
           var btn = singleForm.querySelector("button[type=submit]");
           var ligandInput = document.getElementById("ligand-analyze");
-          var hiddenFname = document.getElementById("pdb-filename-hidden");
-          var fileInput = singleForm.querySelector('input[type="file"]');
-
-          var pdbFilename = hiddenFname ? hiddenFname.value.trim() : "";
-          var hasUploadedFile = fileInput && fileInput.files && fileInput.files.length > 0;
-          var ligandName = ligandInput ? ligandInput.value.trim() : "";
+          var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
 
           console.log("[PSC] State:", {
-            pdbFilename: pdbFilename,
-            hasUploadedFile: hasUploadedFile,
+            analysisFile: {
+              name: analysisFile.name,
+              source: analysisFile.source,
+              ready: analysisFile.ready,
+              hasFileObject: !!analysisFile.fileObject
+            },
             ligandName: ligandName,
-            canAnalyze: !!(pdbFilename || hasUploadedFile) && !!ligandName
+            canAnalyze: analysisFile.ready && !!ligandName
           });
 
-          // Validate: must have either RCSB-fetched file or uploaded file
-          if (!pdbFilename && !hasUploadedFile) {
+          // Validate
+          if (!analysisFile.ready) {
             var statusEl = document.getElementById("fetch-status");
             if (statusEl) {
               statusEl.innerHTML = '<span style="color:#ef4444;">Please upload a PDB file or fetch from RCSB first.</span>';
             }
-            console.log("[PSC] ABORT: no PDB file or RCSB fetch");
+            console.log("[PSC] ABORT: analysisFile not ready");
             return;
           }
 
@@ -2391,15 +2460,22 @@
           setStage(0, "active");
           advanceStage();
 
-          var formData = new FormData(singleForm);
-          console.log("[PSC] FormData entries:");
-          for (var pair of formData.entries()) {
-            console.log("  " + pair[0] + ": " + (pair[0] === "pdb_file" ? "[File: " + (pair[1].name || "unknown") + "]" : pair[1]));
+          // Build FormData with unified analysisFile
+          var fd = new FormData();
+          fd.append("ligand_name", ligandName);
+          if (analysisFile.fileObject) {
+            fd.append("pdb_file", analysisFile.fileObject, analysisFile.name);
+            console.log("[PSC] Appended pdb_file:", analysisFile.name, "size:", analysisFile.fileObject.size);
           }
+          if (analysisFile.pdbFilename) {
+            fd.append("pdb_filename", analysisFile.pdbFilename);
+            console.log("[PSC] Appended pdb_filename:", analysisFile.pdbFilename);
+          }
+          console.log("[PSC] FormData has pdb_file:", fd.has("pdb_file"), "has pdb_filename:", fd.has("pdb_filename"));
 
           fetch("/analyze_async", {
             method: "POST",
-            body: formData
+            body: fd
           })
             .then(function(resp) {
               console.log("[PSC] Response status:", resp.status);
@@ -2407,6 +2483,9 @@
             })
             .then(function(data) {
               console.log("[PSC] Response data.success:", data.success);
+              if (!data.success) {
+                console.log("[PSC] Server error:", data.error_text);
+              }
               handleResponse(data);
             })
             .catch(function(err) {
