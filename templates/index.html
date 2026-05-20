@@ -112,64 +112,36 @@
       font-size: 15px;
     }
 
-    /* Stats row */
-    .stats-row {
-      display: flex;
-      gap: 16px;
-      margin-top: 20px;
-      flex-wrap: wrap;
+    /* Stats counter */
+    .stats-counter {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 14px;
+      color: #94a3b8;
+      font-weight: 500;
+      letter-spacing: 0.3px;
     }
 
-    .stat-card {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 12px;
-      padding: 16px 20px;
-      min-width: 140px;
-      flex: 1;
-      backdrop-filter: blur(8px);
-      transition: border-color 0.3s, background 0.3s;
+    .stats-counter .counter-icon {
+      font-size: 16px;
     }
 
-    .stat-card:hover {
-      border-color: rgba(96,165,250,0.3);
-      background: rgba(255,255,255,0.09);
-    }
-
-    .stat-number {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: white;
-      line-height: 1.2;
+    .stats-counter .counter-value {
+      color: #60a5fa;
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
     }
 
-    .stat-label {
-      font-size: 12px;
-      color: #94a3b8;
-      margin-top: 4px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-    }
-
-    .stat-number.skeleton,
-    .stat-label.skeleton {
+    .stats-counter.skeleton .counter-value {
+      display: inline-block;
+      width: 50px;
+      height: 16px;
       background: rgba(255,255,255,0.08);
-      border-radius: 6px;
-      color: transparent !important;
+      border-radius: 4px;
       animation: shimmer 1.5s ease-in-out infinite;
-    }
-
-    .stat-number.skeleton {
-      width: 70px;
-      height: 30px;
-    }
-
-    .stat-label.skeleton {
-      width: 100px;
-      height: 14px;
-      margin-top: 6px;
+      vertical-align: text-bottom;
     }
 
     @keyframes shimmer {
@@ -1096,25 +1068,12 @@
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
           <h1>Protein Structure Copilot</h1>
-          <p>Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
-          <div class="stats-row" id="stats-row">
-            <div class="stat-card">
-              <div class="stat-number skeleton">0</div>
-              <div class="stat-label skeleton">Total Analyses</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number skeleton">0</div>
-              <div class="stat-label skeleton">Structures Analyzed</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number skeleton">0</div>
-              <div class="stat-label skeleton">Mutation Scans</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-number skeleton">0</div>
-              <div class="stat-label skeleton">Comparisons</div>
-            </div>
+          <div class="stats-counter skeleton" id="stats-counter">
+            <span class="counter-icon">🧬</span>
+            <span class="counter-value">0</span>
+            analyses performed
           </div>
+          <p style="margin-top: 12px;">Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
         </div>
         <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
           <span class="dark-mode-icon">🌙</span>
@@ -3637,19 +3596,12 @@
     })();
   </script>
 
-  <!-- Stats fetch + count-up animation -->
+  <!-- Stats counter -->
   <script>
     (function() {
-      var STAT_LABELS = [
-        "Total Analyses",
-        "Structures Analyzed",
-        "Mutation Scans",
-        "Comparisons"
-      ];
-
       function animateNumber(el, target) {
         var start = 0;
-        var duration = 1200;
+        var duration = 1400;
         var startTime = null;
 
         function step(timestamp) {
@@ -3671,31 +3623,15 @@
         fetch("/stats")
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            var cards = document.querySelectorAll("#stats-row .stat-card");
-            var values = [
-              data.total_analyses || 0,
-              data.structures_analyzed || 0,
-              data.mutation_scans || 0,
-              data.comparisons || 0
-            ];
-
-            values.forEach(function(target, i) {
-              var card = cards[i];
-              if (!card) return;
-              var numEl = card.querySelector(".stat-number");
-              var labelEl = card.querySelector(".stat-label");
-              if (numEl) {
-                numEl.classList.remove("skeleton");
-                animateNumber(numEl, target);
-              }
-              if (labelEl) {
-                labelEl.classList.remove("skeleton");
-                labelEl.textContent = STAT_LABELS[i];
-              }
-            });
+            var counter = document.getElementById("stats-counter");
+            if (!counter) return;
+            var valueEl = counter.querySelector(".counter-value");
+            if (!valueEl) return;
+            counter.classList.remove("skeleton");
+            animateNumber(valueEl, data.total_analyses || 0);
           })
           .catch(function() {
-            // Stats unavailable — leave skeleton, it's not critical
+            // Stats unavailable — leave skeleton
           });
       }
 

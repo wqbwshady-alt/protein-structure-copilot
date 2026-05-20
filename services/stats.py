@@ -7,12 +7,7 @@ _lock = threading.Lock()
 
 
 def _defaults():
-    return {
-        "total_analyses": 0,
-        "structures_analyzed": 0,
-        "mutation_scans": 0,
-        "comparisons": 0,
-    }
+    return {"total_analyses": 0}
 
 
 def _read():
@@ -21,12 +16,9 @@ def _read():
     try:
         with open(STATS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        defaults = _defaults()
-        for key in defaults:
-            defaults[key] = data.get(key, 0)
-        return defaults
     except (json.JSONDecodeError, IOError):
         return _defaults()
+    return {"total_analyses": data.get("total_analyses", 0)}
 
 
 def _write(stats):
@@ -43,22 +35,13 @@ def increment_analysis():
     with _lock:
         stats = _read()
         stats["total_analyses"] += 1
-        stats["structures_analyzed"] += 1
         _write(stats)
         return stats
 
 
 def increment_mutation_scan():
-    with _lock:
-        stats = _read()
-        stats["mutation_scans"] += 1
-        _write(stats)
-        return stats
+    return increment_analysis()
 
 
 def increment_comparison():
-    with _lock:
-        stats = _read()
-        stats["comparisons"] += 1
-        _write(stats)
-        return stats
+    return increment_analysis()
