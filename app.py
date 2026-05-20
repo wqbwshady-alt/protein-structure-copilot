@@ -434,11 +434,8 @@ def _build_protein_only_result(pdb_path, filename):
         f"- Other: {residue_type_counts['other']}\n"
     )
 
-    ai_text = (
-        "Protein-only analysis mode. Ligand pocket contact analysis was skipped. "
-        "This overview summarizes chain counts, residue counts, broad residue chemistry, "
-        "and provides a 3D structure view for protein-only structures."
-    )
+    from ai_client import generate_protein_only_interpretation
+    ai_text = generate_protein_only_interpretation(summary)
 
     report_filename = write_result_file(
         f"protein_only_report_{uuid4().hex}.txt",

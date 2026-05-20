@@ -141,26 +141,10 @@ def build_comparison_report(ligand_name, wt_contacts, mut_contacts, wt_counts, m
     positive_change = mut_counts["positive"] - wt_counts["positive"]
     negative_change = mut_counts["negative"] - wt_counts["negative"]
 
-    if len(lost) == 0 and len(gained) == 0:
-        interpretation = (
-            "No major pocket residue change detected. The mutant pocket appears similar to WT based on 5A ligand contact residues."
-        )
-    elif len(lost) > len(gained):
-        interpretation = (
-            "The mutant lost more ligand-contact residues than it gained, suggesting possible weakening or rearrangement of the binding pocket."
-        )
-    elif hydrophobic_change < 0:
-        interpretation = (
-            "The mutant shows reduced hydrophobic pocket composition, suggesting possible loss of hydrophobic packing around the ligand."
-        )
-    elif len(gained) > len(lost):
-        interpretation = (
-            "The mutant gained additional ligand-contact residues, suggesting possible pocket reorganization or altered ligand environment."
-        )
-    else:
-        interpretation = (
-            "The mutant pocket shows moderate residue-level changes, suggesting local binding environment remodeling."
-        )
+    from ai_client import generate_comparison_interpretation
+    interpretation = generate_comparison_interpretation(
+        ligand_name, wt_contacts, mut_contacts, wt_counts, mut_counts, lost, gained, shared
+    )
 
     report_text = f"""WT vs Mutant Pocket Comparison
 

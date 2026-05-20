@@ -305,6 +305,7 @@ def analyze_mutation_scan(pdb_path, ligand_name, mutation_text, chain_id=None):
         "original_interactions": original_interactions,
         "interaction_impact": interaction_impact,
     }
-    mutation_result["ai_interpretation"] = build_mutation_interpretation(mutation_result)
+    from ai_client import generate_mutation_interpretation
+    mutation_result["ai_interpretation"] = generate_mutation_interpretation(mutation_result)
 
     return mutation_result

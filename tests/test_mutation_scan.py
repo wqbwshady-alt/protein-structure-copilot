@@ -63,7 +63,11 @@ class MutationScanTest(unittest.TestCase):
         self.assertEqual(result["mutant_residue"]["res_name"], "ALA")
         self.assertIn("charge", result["property_changes"])
         self.assertIn("possible_loss", result["interaction_impact"])
-        self.assertIn("Mutation Impact Summary", result["ai_interpretation"])
+        self.assertTrue(
+            "mutation" in result["ai_interpretation"].lower()
+            and len(result["ai_interpretation"]) > 100,
+            f"ai_interpretation should contain a substantive mutation analysis, got {len(result['ai_interpretation'])} chars"
+        )
 
     def test_mutation_report(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
