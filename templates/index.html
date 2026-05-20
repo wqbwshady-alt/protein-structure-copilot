@@ -1122,6 +1122,21 @@
           <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
           <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
           <div class="form-group">
+            <label>PDB ID (RCSB)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="mutation-pdb-id-input" class="text-input"
+                     placeholder="e.g. 1TSR" style="max-width:160px;text-transform:uppercase;"
+                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
+              <button type="button" id="mutation-fetch-pdb-btn" class="btn-outline"
+                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
+                Fetch from RCSB
+              </button>
+              <span id="mutation-fetch-status" style="font-size:13px;"></span>
+            </div>
+            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
+          </div>
+
+          <div class="form-group">
             <label>Current Structure</label>
             <div class="structure-source-box warning" id="mutation-structure-source">
               Please load a structure from RCSB or upload a local PDB file first.
@@ -1161,6 +1176,21 @@
           <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
           <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
           <div class="form-group">
+            <label>PDB ID (RCSB)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="compare-pdb-id-input" class="text-input"
+                     placeholder="e.g. 7VV4" style="max-width:160px;text-transform:uppercase;"
+                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
+              <button type="button" id="compare-fetch-pdb-btn" class="btn-outline"
+                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
+                Fetch from RCSB
+              </button>
+              <span id="compare-fetch-status" style="font-size:13px;"></span>
+            </div>
+            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
+          </div>
+
+          <div class="form-group">
             <label>Current Structure</label>
             <div class="structure-source-box warning" id="compare-structure-source">
               Please load a structure from RCSB or upload a local PDB file first.
@@ -1177,8 +1207,8 @@
           <div class="form-group">
             <label for="compare-mutation-text">Mutation</label>
             <input type="text" id="compare-mutation-text" class="text-input"
-                   name="compare_mutation_text" placeholder="e.g. R273H / K120A / Y220C" required>
-            <div class="helper">Single-letter code: wild-type residue, position, mutant residue.</div>
+                   name="compare_mutation_text" placeholder="e.g. R273H / K120A / Y220C">
+            <div class="helper">Optional single-letter mutation. Leave empty to compare the loaded WT pocket against itself as a baseline.</div>
           </div>
 
           <div class="form-group">
@@ -1726,9 +1756,7 @@
 
       var ignoredLigandResidues = new Set([
         "HOH", "WAT", "H2O", "DOD",
-        "NA", "CL", "K", "MG", "CA", "ZN", "MN", "FE", "CU", "CO", "NI", "CD",
-        "SO4", "PO4",
-        "HG", "IOD", "BR", "F", "LI", "CS", "RB", "AL", "BA", "SR", "YB"
+        "SO4", "PO4"
       ]);
 
       function detectLigandsFromPdbText(pdbText) {
@@ -1782,22 +1810,26 @@
         setLigandDetectionState([]);
       }
 
-      function setLigandDetectionMessage(sourceLabel, html) {
-        var fetchStatus = document.getElementById("fetch-status");
+      function setLigandDetectionMessage(sourceLabel, html, statusEl) {
+        var fetchStatus = statusEl || document.getElementById("fetch-status");
         if (!fetchStatus) return;
 
-        if (sourceLabel === "rcsb" && fetchStatus.innerHTML.indexOf("Downloaded") !== -1) {
+        if (sourceLabel === "rcsb" &&
+            (fetchStatus.innerHTML.indexOf("Downloaded") !== -1 ||
+             fetchStatus.innerHTML.indexOf("Loaded from RCSB") !== -1)) {
           fetchStatus.innerHTML += " " + html;
         } else {
           fetchStatus.innerHTML = html;
         }
       }
 
-      function updateLigandCandidates(ligands, sourceLabel) {
+      function updateLigandCandidates(ligands, sourceLabel, options) {
+        options = options || {};
         var ligandInput = document.getElementById("ligand-analyze");
         var datalist = document.getElementById("ligand-candidates");
         var names = (ligands || []).map(function(ligand) { return ligand.name; });
         var primaryLigand = ligands && ligands.length ? ligands[0].name : "";
+        var statusEl = options.statusEl || null;
         setLigandDetectionState(ligands || []);
 
         console.log("[PSC] Detected ligands from " + sourceLabel + ":", (ligands || []).map(function(ligand) {
@@ -1816,7 +1848,8 @@
         if (!names.length) {
           setLigandDetectionMessage(
             sourceLabel,
-            '<span style="color:#64748b;">No ligand detected. Protein-only mode enabled — click Analyze Structure to proceed.</span>'
+            '<span style="color:#64748b;">No ligand detected. Protein-only mode enabled — click Analyze Structure to proceed.</span>',
+            statusEl
           );
           // Auto-enable skip-ligand mode when no ligands detected
           var skipInput = document.getElementById("skip-ligand-mode");
@@ -1835,11 +1868,12 @@
         }
 
         if (names.length === 1) {
-          setLigandDetectionMessage(sourceLabel, '<span style="color:#64748b;">Detected ligand: ' + names[0] + '</span>');
+          setLigandDetectionMessage(sourceLabel, '<span style="color:#64748b;">Detected ligand: ' + names[0] + '</span>', statusEl);
         } else {
           setLigandDetectionMessage(
             sourceLabel,
-            '<span style="color:#64748b;">Detected ligand: ' + primaryLigand + '. Candidates: ' + names.slice(0, 6).join(", ") + '</span>'
+            '<span style="color:#64748b;">Detected ligand: ' + primaryLigand + '. Candidates: ' + names.slice(0, 6).join(", ") + '</span>',
+            statusEl
           );
         }
 
@@ -1848,6 +1882,15 @@
           ligandInput.dispatchEvent(new Event("input", { bubbles: true }));
           ligandInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
+
+        ["ligand-mutation", "ligand-compare"].forEach(function(id) {
+          var featureLigandInput = document.getElementById(id);
+          if (featureLigandInput && primaryLigand) {
+            featureLigandInput.value = primaryLigand;
+            featureLigandInput.dispatchEvent(new Event("input", { bubbles: true }));
+            featureLigandInput.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
       }
 
       function isSkipLigandMode() {
@@ -2109,78 +2152,122 @@
         skipLigandInput.addEventListener("change", updateSkipLigandModeUI);
       }
 
-      // RCSB PDB fetch
-      var fetchBtn = document.getElementById("fetch-pdb-btn");
-      var pdbIdInput = document.getElementById("pdb-id-input");
-      var fetchStatus = document.getElementById("fetch-status");
-      var analyzeDropZone = document.getElementById("drop-zone-analyze");
+      function syncRcsbFileInput(pdbFile) {
+        var analyzeDropZone = document.getElementById("drop-zone-analyze");
+        var fileInput = analyzeDropZone ? analyzeDropZone.querySelector('input[type="file"]') : null;
+        if (!fileInput) return;
 
-      if (fetchBtn && pdbIdInput && analyzeDropZone) {
-        fetchBtn.addEventListener("click", function() {
-          var pdbId = pdbIdInput.value.trim().toUpperCase();
-          if (!pdbId || pdbId.length !== 4) {
-            fetchStatus.innerHTML = '<span style="color:#ef4444;">Enter a valid 4-character PDB ID</span>';
-            return;
+        var dt = new DataTransfer();
+        dt.items.add(pdbFile);
+        fileInput.files = dt.files;
+      }
+
+      function refreshCurrentStructureViewer(pdbText) {
+        var viewerEl = document.getElementById("viewer");
+        if (!viewerEl || !window.$3Dmol || !pdbText) return;
+
+        var previewViewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
+        previewViewer.addModel(pdbText, "pdb");
+        previewViewer.setStyle({}, { cartoon: { color: "spectrum" } });
+        previewViewer.zoomTo();
+        previewViewer.render();
+        previewViewer.resize();
+      }
+
+      function fetchStructureFromRCSB(pdbId, options) {
+        options = options || {};
+        var normalizedPdbId = String(pdbId || "").trim().toUpperCase();
+        var statusEl = options.statusEl || document.getElementById("fetch-status");
+        var button = options.button || null;
+
+        if (!normalizedPdbId || normalizedPdbId.length !== 4) {
+          if (statusEl) {
+            statusEl.innerHTML = '<span style="color:#ef4444;">Enter a valid 4-character PDB ID</span>';
           }
-          fetchBtn.disabled = true;
-          fetchStatus.innerHTML = '<span style="color:#3b82f6;">Fetching from RCSB...</span>';
+          return Promise.resolve(false);
+        }
 
-          var formData = new FormData();
-          formData.append("pdb_id", pdbId);
+        if (button) button.disabled = true;
+        if (statusEl) {
+          statusEl.innerHTML = '<span style="color:#3b82f6;">Fetching from RCSB...</span>';
+        }
 
-          fetch("/fetch_pdb", { method: "POST", body: formData })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              fetchBtn.disabled = false;
-              if (!data.success) {
-                fetchStatus.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
-                clearLigandCandidates();
-                setAnalysisFile({ ready: false });
-                return;
+        var formData = new FormData();
+        formData.append("pdb_id", normalizedPdbId);
+
+        return fetch("/fetch_pdb", { method: "POST", body: formData })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.success) {
+              if (statusEl) {
+                statusEl.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
               }
-
-              // Download PDB content and create a File object for all analysis modes.
-              fetch(data.pdb_url)
-                .then(function(r) { return r.text(); })
-                .then(function(pdbText) {
-                  if (!pdbText || !pdbText.trim()) {
-                    throw new Error("Downloaded PDB content is empty");
-                  }
-                  var pdbFile = new File([pdbText], pdbId + ".pdb", { type: "chemical/x-pdb" });
-                  var fileInput = analyzeDropZone.querySelector('input[type="file"]');
-                  if (fileInput) {
-                    var dt = new DataTransfer();
-                    dt.items.add(pdbFile);
-                    fileInput.files = dt.files;
-                  }
-
-                  // Update unified state
-                  setAnalysisFile({
-                    name: pdbId + ".pdb",
-                    size: formatSize(pdbFile.size),
-                    source: "rcsb",
-                    fileObject: pdbFile,
-                    pdbFilename: data.filename,
-                    pdbText: pdbText,
-                    pdbId: data.pdb_id || pdbId,
-                    ready: true
-                  });
-
-                  fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
-                  updateLigandCandidates(detectLigandsFromPdbText(pdbText), "rcsb");
-                })
-                .catch(function(err) {
-                  console.error("[PSC] Failed to download PDB content:", err);
-                  fetchStatus.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
-                  clearLigandCandidates();
-                  setAnalysisFile({ ready: false });
-                });
-            })
-            .catch(function(err) {
-              fetchBtn.disabled = false;
-              fetchStatus.innerHTML = '<span style="color:#ef4444;">Network error: ' + (err.message || "unknown") + '</span>';
               clearLigandCandidates();
-            });
+              setAnalysisFile({ ready: false });
+              return false;
+            }
+
+            return fetch(data.pdb_url)
+              .then(function(r) { return r.text(); })
+              .then(function(pdbText) {
+                if (!pdbText || !pdbText.trim()) {
+                  throw new Error("Downloaded PDB content is empty");
+                }
+
+                var pdbFile = new File([pdbText], normalizedPdbId + ".pdb", { type: "chemical/x-pdb" });
+                syncRcsbFileInput(pdbFile);
+
+                setAnalysisFile({
+                  name: normalizedPdbId + ".pdb",
+                  size: formatSize(pdbFile.size),
+                  source: "rcsb",
+                  fileObject: pdbFile,
+                  pdbFilename: data.filename,
+                  pdbText: pdbText,
+                  pdbId: data.pdb_id || normalizedPdbId,
+                  ready: true
+                });
+
+                if (statusEl) {
+                  statusEl.innerHTML = '<span style="color:#22c55e;">✓ Loaded from RCSB: ' + normalizedPdbId + '.pdb</span>';
+                }
+                var detectedLigands = detectLigandsFromPdbText(pdbText);
+                if (!detectedLigands.length && data.ligands && data.ligands.length) {
+                  detectedLigands = data.ligands.map(function(name) {
+                    return { name: name, count: 0, locations: [] };
+                  });
+                }
+                updateLigandCandidates(detectedLigands, "rcsb", { statusEl: statusEl });
+                refreshCurrentStructureViewer(pdbText);
+                return true;
+              });
+          })
+          .catch(function(err) {
+            console.error("[PSC] Failed to fetch PDB from RCSB:", err);
+            if (statusEl) {
+              statusEl.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
+            }
+            clearLigandCandidates();
+            setAnalysisFile({ ready: false });
+            return false;
+          })
+          .finally(function() {
+            if (button) button.disabled = false;
+          });
+      }
+      window.PSCFetchStructureFromRCSB = fetchStructureFromRCSB;
+
+      function setupRcsbFetchControls(inputId, buttonId, statusId) {
+        var pdbIdInput = document.getElementById(inputId);
+        var fetchBtn = document.getElementById(buttonId);
+        var fetchStatus = document.getElementById(statusId);
+        if (!pdbIdInput || !fetchBtn) return;
+
+        fetchBtn.addEventListener("click", function() {
+          fetchStructureFromRCSB(pdbIdInput.value, {
+            button: fetchBtn,
+            statusEl: fetchStatus
+          });
         });
 
         pdbIdInput.addEventListener("keydown", function(e) {
@@ -2190,6 +2277,10 @@
           }
         });
       }
+
+      setupRcsbFetchControls("pdb-id-input", "fetch-pdb-btn", "fetch-status");
+      setupRcsbFetchControls("mutation-pdb-id-input", "mutation-fetch-pdb-btn", "mutation-fetch-status");
+      setupRcsbFetchControls("compare-pdb-id-input", "compare-fetch-pdb-btn", "compare-fetch-status");
     })();
   </script>
 

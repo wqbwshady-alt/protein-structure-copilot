@@ -230,6 +230,28 @@ class AppTest(unittest.TestCase):
         self.assertIn(b"WT vs Mutant Heuristic Comparison", response.data)
         self.assertIn(b"D25A", response.data)
 
+    def test_compare_accepts_loaded_structure_without_mutation_as_baseline(self):
+        pdb_path = os.path.join(ROOT_DIR, "data", "7VV4.pdb")
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            loaded_name = "RCSB_7VV4_test.pdb"
+            loaded_path = os.path.join(upload_dir, loaded_name)
+            with open(pdb_path, "rb") as src, open(loaded_path, "wb") as dst:
+                dst.write(src.read())
+
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                response = self.client.post(
+                    "/compare",
+                    data={
+                        "compare_ligand_name": "CLR",
+                        "pdb_filename": loaded_name
+                    }
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"WT vs Mutant Pocket Comparison", response.data)
+        self.assertIn(b"Target ligand: CLR", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()

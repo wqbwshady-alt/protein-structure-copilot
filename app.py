@@ -581,6 +581,79 @@ def compare():
             mutation_scan_text=mutation_scan_text
         )
 
+    has_shared_structure = bool(
+        request.form.get("pdb_filename", "").strip() or
+        (request.files.get("pdb_file") and request.files.get("pdb_file").filename)
+    )
+
+    if has_shared_structure:
+        filename, pdb_path, error_text = resolve_loaded_structure(
+            ("pdb_file",),
+            prefix="COMPARE_"
+        )
+
+        if error_text:
+            return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+        if not ligand_name:
+            error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
+            return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+        contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
+            pdb_path,
+            ligand_name
+        )
+
+        if contact_residues is None:
+            result_text = (
+                f"No ligand named {ligand_name} found in the loaded PDB file.\n"
+                f"{format_ligand_suggestions(list_ligands(pdb_path))}"
+            )
+            return render_index(
+                result_text=result_text,
+                ai_html=make_html(result_text),
+                pdb_url=url_for("uploaded_file", filename=filename)
+            )
+
+        pymol_filename = generate_pymol_script(
+            pdb_path,
+            ligand_name,
+            contact_residues,
+            RESULT_FOLDER,
+            output_prefix=f"compare_{uuid4().hex[:8]}"
+        )
+        wt_report_text, wt_ai_text = build_report(
+            ligand_name,
+            contact_residues,
+            counts,
+            primary_interpretation,
+            pymol_filename,
+            interactions
+        )
+        comparison_text, lost, gained = build_comparison_report(
+            ligand_name,
+            contact_residues,
+            contact_residues,
+            counts,
+            counts
+        )
+
+        write_result_file(
+            f"mutation_comparison_report_{uuid4().hex}.txt",
+            comparison_text
+        )
+
+        return render_index(
+            result_text=wt_report_text,
+            ai_html=make_html(wt_ai_text),
+            pdb_url=url_for("uploaded_file", filename=filename),
+            interaction_data=interactions,
+            comparison_text=comparison_text,
+            lost_residues=residue_keys_to_json(lost),
+            gained_residues=residue_keys_to_json(gained),
+            hotspot_residues=get_hotspot_residues(interactions)
+        )
+
     wt_file = request.files.get("wt_file")
     mut_file = request.files.get("mut_file")
 
