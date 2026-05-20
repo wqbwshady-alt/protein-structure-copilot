@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import ssl
 import urllib.error
 import urllib.request
 from uuid import uuid4
@@ -38,6 +39,15 @@ ALLOWED_EXTENSIONS = {".pdb"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
+
+
+def make_urlopen_context():
+    try:
+        import certifi
+    except ImportError:
+        return ssl.create_default_context()
+
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def empty_page_context(**overrides):
@@ -103,6 +113,26 @@ def save_uploaded_pdb(file_storage, prefix=""):
     return filename, path, None
 
 
+def resolve_loaded_structure(file_fields, prefix=""):
+    pdb_filename = request.form.get("pdb_filename", "").strip()
+
+    if pdb_filename:
+        filename = secure_filename(pdb_filename)
+        pdb_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.isfile(pdb_path):
+            return None, None, "Fetched PDB file no longer available. Please re-fetch."
+        if not is_pdb_file(pdb_path):
+            return None, None, "Loaded PDB file does not contain ATOM or HETATM records."
+        return filename, pdb_path, None
+
+    for field in file_fields:
+        pdb_file = request.files.get(field)
+        if pdb_file and pdb_file.filename:
+            return save_uploaded_pdb(pdb_file, prefix=prefix)
+
+    return None, None, "Please load a structure from RCSB or upload a local PDB file first."
+
+
 def write_result_file(filename, text):
     path = os.path.join(RESULT_FOLDER, filename)
 
@@ -110,6 +140,19 @@ def write_result_file(filename, text):
         f.write(text)
 
     return filename
+
+
+def mutation_residue_highlights(mutation_result):
+    lost = []
+    gained = []
+
+    if mutation_result["interaction_impact"]["possible_loss"]:
+        lost.append(mutation_result["original_residue"])
+
+    if mutation_result["interaction_impact"]["possible_gain"]:
+        gained.append(mutation_result["mutant_residue"])
+
+    return lost, gained
 
 
 @app.route("/", methods=["GET"])
@@ -451,9 +494,95 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
 
 @app.route("/compare", methods=["POST"])
 def compare():
+    mutation_text = (
+        request.form.get("compare_mutation_text", "").strip().upper() or
+        request.form.get("mutation_text", "").strip().upper()
+    )
+    chain_id = (
+        request.form.get("compare_chain_id", "").strip() or
+        request.form.get("mutation_chain_id", "").strip()
+    )
+    ligand_name = request.form.get("compare_ligand_name", "").strip().upper()
+
+    if mutation_text:
+        filename, pdb_path, error_text = resolve_loaded_structure(
+            ("pdb_file", "wt_file"),
+            prefix="COMPARE_"
+        )
+
+        if error_text:
+            return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+        if not ligand_name:
+            error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
+            return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+        try:
+            mutation_result = analyze_mutation_scan(
+                pdb_path,
+                ligand_name,
+                mutation_text,
+                chain_id=chain_id or None
+            )
+        except MutationScanError as error:
+            error_text = str(error)
+            return render_index(
+                result_text=error_text,
+                ai_html=make_html(error_text),
+                pdb_url=url_for("uploaded_file", filename=filename)
+            )
+
+        contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
+            pdb_path,
+            ligand_name
+        )
+
+        pymol_filename = generate_pymol_script(
+            pdb_path,
+            ligand_name,
+            contact_residues,
+            RESULT_FOLDER,
+            output_prefix=f"compare_{uuid4().hex[:8]}"
+        )
+        wt_report_text, wt_ai_text = build_report(
+            ligand_name,
+            contact_residues,
+            counts,
+            primary_interpretation,
+            pymol_filename,
+            interactions
+        )
+
+        mutation_scan_text = build_mutation_scan_report(mutation_result)
+        comparison_text = (
+            "WT vs Mutant Heuristic Comparison\n\n"
+            f"Target ligand: {ligand_name}\n"
+            f"Mutation: {mutation_result['mutation']}\n"
+            f"Chain: {mutation_result['chain_id']}\n\n"
+            f"{mutation_scan_text}"
+        )
+        lost_residues, gained_residues = mutation_residue_highlights(mutation_result)
+
+        write_result_file(
+            f"mutation_comparison_report_{uuid4().hex}.txt",
+            comparison_text
+        )
+
+        return render_index(
+            result_text=wt_report_text,
+            ai_html=make_html(wt_ai_text),
+            pdb_url=url_for("uploaded_file", filename=filename),
+            interaction_data=interactions,
+            comparison_text=comparison_text,
+            lost_residues=lost_residues,
+            gained_residues=gained_residues,
+            hotspot_residues=get_hotspot_residues(interactions),
+            mutation_scan_result=mutation_result,
+            mutation_scan_text=mutation_scan_text
+        )
+
     wt_file = request.files.get("wt_file")
     mut_file = request.files.get("mut_file")
-    ligand_name = request.form.get("compare_ligand_name", "").strip().upper()
 
     if not wt_file or wt_file.filename == "":
         error_text = "Please upload WT PDB file."
@@ -543,13 +672,16 @@ def compare():
 
 @app.route("/mutation_scan", methods=["POST"])
 def mutation_scan():
-    pdb_file = request.files.get("mutation_pdb_file")
     ligand_name = request.form.get("mutation_ligand_name", "").strip().upper()
     mutation_text = request.form.get("mutation_text", "").strip().upper()
     chain_id = request.form.get("mutation_chain_id", "").strip()
 
-    if not pdb_file or pdb_file.filename == "":
-        error_text = "Please upload a PDB file for mutation scan."
+    filename, pdb_path, error_text = resolve_loaded_structure(
+        ("pdb_file", "mutation_pdb_file"),
+        prefix="MUTSCAN_"
+    )
+
+    if error_text:
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     if not ligand_name:
@@ -558,11 +690,6 @@ def mutation_scan():
 
     if not mutation_text:
         error_text = "Please enter mutation, for example: R273H."
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-    filename, pdb_path, error_text = save_uploaded_pdb(pdb_file, prefix="MUTSCAN_")
-
-    if error_text:
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     try:
@@ -603,7 +730,7 @@ def _fetch_pdb_from_rcsb(pdb_id):
     url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "ProteinStructureCopilot/1.0"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30, context=make_urlopen_context()) as resp:
             data = resp.read().decode("utf-8", errors="ignore")
     except urllib.error.HTTPError as e:
         if e.code == 404:

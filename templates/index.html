@@ -210,6 +210,33 @@
       font-weight: 600;
     }
 
+    .structure-source-box {
+      max-width: 560px;
+      padding: 12px 14px;
+      background: var(--bg-section);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .structure-source-box.ready {
+      border-color: var(--border-drop-file);
+      background: var(--bg-drop-file);
+      color: #15803d;
+    }
+
+    .structure-source-box.warning {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    .shared-structure-file {
+      display: none;
+    }
+
     .text-input {
       padding: 10px 14px;
       width: 100%;
@@ -1092,31 +1119,13 @@
       <!-- Tab: Mutation Scan -->
       <div class="tab-panel" id="tab-mutation">
         <form action="/mutation_scan" method="post" enctype="multipart/form-data" class="analysis-form">
+          <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
+          <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
           <div class="form-group">
-            <label>PDB File</label>
-            <div class="drop-zone" id="drop-zone-mutation">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a PDB file</strong> or drag it here
-                </div>
-              </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> PDB file ready for analysis
-                  </div>
-                </div>
-              </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="mutation_pdb_file" accept=".pdb" required>
+            <label>Current Structure</label>
+            <div class="structure-source-box warning" id="mutation-structure-source">
+              Please load a structure from RCSB or upload a local PDB file first.
             </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
           </div>
 
           <div class="form-group">
@@ -1149,58 +1158,13 @@
       <!-- Tab: WT vs Mutant Comparison -->
       <div class="tab-panel" id="tab-compare">
         <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form">
+          <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
+          <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
           <div class="form-group">
-            <label>WT PDB File</label>
-            <div class="drop-zone" id="drop-zone-wt">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a PDB file</strong> or drag it here
-                </div>
-              </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> PDB file ready for analysis
-                  </div>
-                </div>
-              </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="wt_file" accept=".pdb" required>
+            <label>Current Structure</label>
+            <div class="structure-source-box warning" id="compare-structure-source">
+              Please load a structure from RCSB or upload a local PDB file first.
             </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Mutant PDB File</label>
-            <div class="drop-zone" id="drop-zone-mut">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a PDB file</strong> or drag it here
-                </div>
-              </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> PDB file ready for analysis
-                  </div>
-                </div>
-              </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="mut_file" accept=".pdb" required>
-            </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
           </div>
 
           <div class="form-group">
@@ -1208,6 +1172,20 @@
             <input type="text" id="ligand-compare" class="text-input"
                    name="compare_ligand_name" placeholder="e.g. MK1 / CLR" required>
             <div class="helper">Enter the 3-letter residue name of the ligand in your PDB files.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="compare-mutation-text">Mutation</label>
+            <input type="text" id="compare-mutation-text" class="text-input"
+                   name="compare_mutation_text" placeholder="e.g. R273H / K120A / Y220C" required>
+            <div class="helper">Single-letter code: wild-type residue, position, mutant residue.</div>
+          </div>
+
+          <div class="form-group">
+            <label for="compare-chain-id">Chain ID (optional)</label>
+            <input type="text" id="compare-chain-id" class="text-input"
+                   name="compare_chain_id" placeholder="e.g. A">
+            <div class="helper">Specify a chain if your PDB contains multiple chains.</div>
           </div>
 
           <button type="submit" class="btn btn-secondary">
@@ -1925,20 +1903,49 @@
       window.PSCDetectLigandsFromFile = detectLigandsFromFile;
 
       // ===== Unified analysis file state =====
-      var analysisFile = window.PSCAnalysisFile = {
+      var currentStructure = {
         name: null,
         size: null,
-        source: null,      // 'upload' or 'rcsb'
+        source: null,      // 'local' or 'rcsb'
         fileObject: null,  // File object for FormData
         pdbFilename: null, // RCSB filename for server-side path
+        pdbText: null,
+        pdbId: null,
         ready: false
       };
+      var analysisStructure = currentStructure;
+      var analysisFile = currentStructure;
+      window.PSCCurrentStructure = currentStructure;
+      window.PSCAnalysisStructure = analysisStructure;
+      window.PSCAnalysisFile = analysisFile;
+
+      function getStructureSourceText() {
+        if (!analysisFile.ready) {
+          return "Please load a structure from RCSB or upload a local PDB file first.";
+        }
+        if (analysisFile.source === "rcsb") {
+          return "Current Structure: " + (analysisFile.pdbId || analysisFile.name || "PDB") + " from RCSB";
+        }
+        return "Current Structure: " + (analysisFile.name || "PDB file") + " from Local Upload";
+      }
+
+      function updateSharedStructurePanels() {
+        ["mutation-structure-source", "compare-structure-source"].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.textContent = getStructureSourceText();
+          el.classList.toggle("ready", !!analysisFile.ready);
+          el.classList.toggle("warning", !analysisFile.ready);
+        });
+      }
 
       function setAnalysisFile(state) {
         Object.assign(analysisFile, {
           name: null, size: null, source: null,
-          fileObject: null, pdbFilename: null, ready: false
+          fileObject: null, pdbFilename: null, pdbText: null, pdbId: null, ready: false
         }, state);
+        window.PSCCurrentStructure = analysisFile;
+        window.PSCAnalysisStructure = analysisFile;
         window.PSCAnalysisFile = analysisFile;
 
         console.log("[PSC] analysisFile updated:", {
@@ -1947,6 +1954,8 @@
           source: analysisFile.source,
           hasFileObject: !!analysisFile.fileObject,
           pdbFilename: analysisFile.pdbFilename,
+          hasPdbText: !!analysisFile.pdbText,
+          pdbId: analysisFile.pdbId,
           ready: analysisFile.ready
         });
 
@@ -1982,6 +1991,8 @@
             statusEl.innerHTML = '';
           }
         }
+
+        updateSharedStructurePanels();
       }
 
       function setupDropZone(zone) {
@@ -2013,15 +2024,27 @@
             if (fetchStatus) {
               fetchStatus.innerHTML = '<span style="color:#3b82f6;">Detecting ligand candidates...</span>';
             }
-            setAnalysisFile({
-              name: file.name,
-              size: sizeStr,
-              source: "upload",
-              fileObject: file,
-              pdbFilename: null,
-              ready: true
-            });
-            detectLigandsFromFile(file, "upload");
+            file.text()
+              .then(function(pdbText) {
+                setAnalysisFile({
+                  name: file.name,
+                  size: sizeStr,
+                  source: "local",
+                  fileObject: file,
+                  pdbFilename: null,
+                  pdbText: pdbText,
+                  pdbId: null,
+                  ready: true
+                });
+                updateLigandCandidates(detectLigandsFromPdbText(pdbText), "local");
+              })
+              .catch(function(err) {
+                console.error("[PSC] Could not read local PDB file:", err);
+                setAnalysisFile({ ready: false });
+                if (fetchStatus) {
+                  fetchStatus.innerHTML = '<span style="color:#ef4444;">Could not read PDB file.</span>';
+                }
+              });
           }
 
           if (file.size > 10 * 1024 * 1024 && warning) {
@@ -2079,6 +2102,7 @@
       document.querySelectorAll(".drop-zone").forEach(function(zone) {
         setupDropZone(zone);
       });
+      updateSharedStructurePanels();
 
       var skipLigandInput = document.getElementById("skip-ligand-mode");
       if (skipLigandInput) {
@@ -2115,14 +2139,14 @@
                 return;
               }
 
-              // Download PDB content and create a File object
+              // Download PDB content and create a File object for all analysis modes.
               fetch(data.pdb_url)
-                .then(function(r) { return r.blob(); })
-                .then(function(blob) {
-                  if (!blob || blob.size === 0) {
+                .then(function(r) { return r.text(); })
+                .then(function(pdbText) {
+                  if (!pdbText || !pdbText.trim()) {
                     throw new Error("Downloaded PDB content is empty");
                   }
-                  var pdbFile = new File([blob], pdbId + ".pdb", { type: "chemical/x-pdb" });
+                  var pdbFile = new File([pdbText], pdbId + ".pdb", { type: "chemical/x-pdb" });
                   var fileInput = analyzeDropZone.querySelector('input[type="file"]');
                   if (fileInput) {
                     var dt = new DataTransfer();
@@ -2133,17 +2157,16 @@
                   // Update unified state
                   setAnalysisFile({
                     name: pdbId + ".pdb",
-                    size: formatSize(blob.size),
+                    size: formatSize(pdbFile.size),
                     source: "rcsb",
                     fileObject: pdbFile,
                     pdbFilename: data.filename,
+                    pdbText: pdbText,
+                    pdbId: data.pdb_id || pdbId,
                     ready: true
                   });
 
                   fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
-                  return blob.text();
-                })
-                .then(function(pdbText) {
                   updateLigandCandidates(detectLigandsFromPdbText(pdbText), "rcsb");
                 })
                 .catch(function(err) {
@@ -2740,14 +2763,57 @@
       }
 
       function getAnalysisFileState() {
-        return window.PSCAnalysisFile || {
+        return window.PSCCurrentStructure || window.PSCAnalysisStructure || window.PSCAnalysisFile || {
           name: null,
           size: null,
           source: null,
           fileObject: null,
           pdbFilename: null,
+          pdbText: null,
+          pdbId: null,
           ready: false
         };
+      }
+
+      function currentStructureMessage(file) {
+        if (!file || !file.ready) {
+          return "Please load a structure from RCSB or upload a local PDB file first.";
+        }
+        if (file.source === "rcsb") {
+          return "Current Structure: " + (file.pdbId || file.name || "PDB") + " from RCSB";
+        }
+        return "Current Structure: " + (file.name || "PDB file") + " from Local Upload";
+      }
+
+      function setSharedStructureMessage(form, file, isError) {
+        var box = null;
+        if (form && form.closest("#tab-mutation")) {
+          box = document.getElementById("mutation-structure-source");
+        } else if (form && form.closest("#tab-compare")) {
+          box = document.getElementById("compare-structure-source");
+        }
+        if (!box) return;
+        box.textContent = isError ? "Please load a structure from RCSB or upload a local PDB file first." : currentStructureMessage(file);
+        box.classList.toggle("ready", !isError && !!file.ready);
+        box.classList.toggle("warning", isError || !file.ready);
+      }
+
+      function syncSharedStructureForm(form, file) {
+        var filenameInput = form.querySelector(".shared-pdb-filename");
+        var fileInput = form.querySelector(".shared-structure-file");
+
+        if (filenameInput) {
+          filenameInput.value = file.pdbFilename || "";
+        }
+
+        if (fileInput) {
+          fileInput.value = "";
+          if (file.fileObject) {
+            var dt = new DataTransfer();
+            dt.items.add(file.fileObject);
+            fileInput.files = dt.files;
+          }
+        }
       }
 
       function showInlineAnalysisError(msg) {
@@ -2921,7 +2987,18 @@
       // Other forms still use the simple loading overlay
       var overlay = document.getElementById("loading-overlay");
       document.querySelectorAll("#tab-mutation form.analysis-form, #tab-compare form.analysis-form").forEach(function(form) {
-        form.addEventListener("submit", function() {
+        form.setAttribute("novalidate", "novalidate");
+        form.addEventListener("submit", function(e) {
+          var file = getAnalysisFileState();
+          if (!file.ready) {
+            e.preventDefault();
+            setSharedStructureMessage(form, file, true);
+            return;
+          }
+
+          syncSharedStructureForm(form, file);
+          setSharedStructureMessage(form, file, false);
+
           var btn = form.querySelector("button[type=submit]");
           if (btn) {
             btn.disabled = true;

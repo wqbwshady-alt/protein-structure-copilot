@@ -182,6 +182,54 @@ class AppTest(unittest.TestCase):
         self.assertIn(b"D25A", response.data)
         self.assertIn(b"Property Changes", response.data)
 
+    def test_mutation_scan_accepts_loaded_pdb_filename(self):
+        pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            loaded_name = "RCSB_1HSG_test.pdb"
+            loaded_path = os.path.join(upload_dir, loaded_name)
+            with open(pdb_path, "rb") as src, open(loaded_path, "wb") as dst:
+                dst.write(src.read())
+
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                response = self.client.post(
+                    "/mutation_scan",
+                    data={
+                        "mutation_ligand_name": "MK1",
+                        "mutation_text": "D25A",
+                        "mutation_chain_id": "A",
+                        "pdb_filename": loaded_name
+                    }
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Mutation Impact Summary", response.data)
+        self.assertIn(b"D25A", response.data)
+
+    def test_compare_accepts_loaded_structure_and_mutation(self):
+        pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            loaded_name = "RCSB_1HSG_test.pdb"
+            loaded_path = os.path.join(upload_dir, loaded_name)
+            with open(pdb_path, "rb") as src, open(loaded_path, "wb") as dst:
+                dst.write(src.read())
+
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                response = self.client.post(
+                    "/compare",
+                    data={
+                        "compare_ligand_name": "MK1",
+                        "compare_mutation_text": "D25A",
+                        "compare_chain_id": "A",
+                        "pdb_filename": loaded_name
+                    }
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"WT vs Mutant Heuristic Comparison", response.data)
+        self.assertIn(b"D25A", response.data)
+
 
 if __name__ == "__main__":
     unittest.main()
