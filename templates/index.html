@@ -1925,6 +1925,7 @@
       }
 
       function showError(msg) {
+        console.error("[PSC] Analysis error:", msg);
         clearStageTimers();
         progressBarFill.style.width = "100%";
         progressBarFill.style.background = "#ef4444";
@@ -1935,6 +1936,12 @@
 
         for (var i = 0; i < totalStages; i++) {
           setStage(i, "done");
+        }
+
+        // Show error in the fetch-status area too (more persistent)
+        var statusEl = document.getElementById("fetch-status");
+        if (statusEl) {
+          statusEl.innerHTML = '<span style="color:#ef4444;">' + msg + '</span>';
         }
 
         setTimeout(function() {
@@ -1949,7 +1956,7 @@
             progressDone.classList.remove("show");
             progressTitle.textContent = "Analyzing Structure";
           }, 400);
-        }, 2500);
+        }, 4000);  // longer display for user to read
       }
 
       function buildResultHTML(data) {
@@ -2315,11 +2322,50 @@
 
       // Intercept Single Analysis form submit
       var singleForm = document.querySelector("#tab-single form.analysis-form");
+      console.log("[PSC] singleForm found:", !!singleForm);
+
       if (singleForm) {
         singleForm.addEventListener("submit", function(e) {
           e.preventDefault();
+          console.log("[PSC] Form submit intercepted");
 
           var btn = singleForm.querySelector("button[type=submit]");
+          var ligandInput = document.getElementById("ligand-analyze");
+          var hiddenFname = document.getElementById("pdb-filename-hidden");
+          var fileInput = singleForm.querySelector('input[type="file"]');
+
+          var pdbFilename = hiddenFname ? hiddenFname.value.trim() : "";
+          var hasUploadedFile = fileInput && fileInput.files && fileInput.files.length > 0;
+          var ligandName = ligandInput ? ligandInput.value.trim() : "";
+
+          console.log("[PSC] State:", {
+            pdbFilename: pdbFilename,
+            hasUploadedFile: hasUploadedFile,
+            ligandName: ligandName,
+            canAnalyze: !!(pdbFilename || hasUploadedFile) && !!ligandName
+          });
+
+          // Validate: must have either RCSB-fetched file or uploaded file
+          if (!pdbFilename && !hasUploadedFile) {
+            var statusEl = document.getElementById("fetch-status");
+            if (statusEl) {
+              statusEl.innerHTML = '<span style="color:#ef4444;">Please upload a PDB file or fetch from RCSB first.</span>';
+            }
+            console.log("[PSC] ABORT: no PDB file or RCSB fetch");
+            return;
+          }
+
+          if (!ligandName) {
+            var statusEl2 = document.getElementById("fetch-status");
+            if (statusEl2) {
+              statusEl2.innerHTML = '<span style="color:#ef4444;">Please enter a ligand name.</span>';
+            }
+            console.log("[PSC] ABORT: no ligand name");
+            return;
+          }
+
+          console.log("[PSC] Proceeding with analysis...");
+
           if (btn) {
             btn.disabled = true;
             var label = btn.querySelector(".btn-label");
@@ -2346,14 +2392,27 @@
           advanceStage();
 
           var formData = new FormData(singleForm);
+          console.log("[PSC] FormData entries:");
+          for (var pair of formData.entries()) {
+            console.log("  " + pair[0] + ": " + (pair[0] === "pdb_file" ? "[File: " + (pair[1].name || "unknown") + "]" : pair[1]));
+          }
 
           fetch("/analyze_async", {
             method: "POST",
             body: formData
           })
-            .then(function(resp) { return resp.json(); })
-            .then(handleResponse)
-            .catch(handleFetchError)
+            .then(function(resp) {
+              console.log("[PSC] Response status:", resp.status);
+              return resp.json();
+            })
+            .then(function(data) {
+              console.log("[PSC] Response data.success:", data.success);
+              handleResponse(data);
+            })
+            .catch(function(err) {
+              console.error("[PSC] Fetch error:", err);
+              handleFetchError(err);
+            })
             .finally(function() {
               if (btn) {
                 btn.disabled = false;
@@ -2362,6 +2421,9 @@
               }
             });
         });
+        console.log("[PSC] Submit listener attached");
+      } else {
+        console.error("[PSC] Could not find single form!");
       }
 
       // Other forms still use the simple loading overlay
