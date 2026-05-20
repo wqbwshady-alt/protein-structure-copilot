@@ -184,6 +184,32 @@
       margin-top: 4px;
     }
 
+    .skip-ligand-control {
+      display: inline-flex !important;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      margin-bottom: 0 !important;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .skip-ligand-control input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+    }
+
+    .info-box {
+      margin-top: 24px;
+      padding: 16px 18px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+
     .text-input {
       padding: 10px 14px;
       width: 100%;
@@ -1048,6 +1074,11 @@
                    name="ligand_name" placeholder="e.g. MK1 / CLR" list="ligand-candidates" required>
             <datalist id="ligand-candidates"></datalist>
             <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
+            <label class="skip-ligand-control" for="skip-ligand-mode">
+              <input type="checkbox" id="skip-ligand-mode">
+              Skip ligand mode
+            </label>
+            <div class="helper">Use for protein-only structures. Ligand pocket analysis is skipped.</div>
           </div>
 
           <div id="analysis-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
@@ -1752,17 +1783,44 @@
       }
       window.PSCDetectLigandsFromPdbText = detectLigandsFromPdbText;
 
+      var ligandDetectionState = window.PSCLigandDetectionState = {
+        status: "unknown",
+        ligands: [],
+        primaryLigand: ""
+      };
+
+      function setLigandDetectionState(ligands) {
+        ligandDetectionState.ligands = ligands || [];
+        ligandDetectionState.primaryLigand = ligandDetectionState.ligands.length ? ligandDetectionState.ligands[0].name : "";
+        ligandDetectionState.status = ligandDetectionState.primaryLigand ? "detected" : "none";
+        window.PSCLigandDetectionState = ligandDetectionState;
+      }
+
       function clearLigandCandidates() {
         var datalist = document.getElementById("ligand-candidates");
+        var ligandInput = document.getElementById("ligand-analyze");
         if (datalist) datalist.innerHTML = "";
+        if (ligandInput && !ligandInput.disabled) ligandInput.value = "";
+        setLigandDetectionState([]);
+      }
+
+      function setLigandDetectionMessage(sourceLabel, html) {
+        var fetchStatus = document.getElementById("fetch-status");
+        if (!fetchStatus) return;
+
+        if (sourceLabel === "rcsb" && fetchStatus.innerHTML.indexOf("Downloaded") !== -1) {
+          fetchStatus.innerHTML += " " + html;
+        } else {
+          fetchStatus.innerHTML = html;
+        }
       }
 
       function updateLigandCandidates(ligands, sourceLabel) {
         var ligandInput = document.getElementById("ligand-analyze");
         var datalist = document.getElementById("ligand-candidates");
-        var fetchStatus = document.getElementById("fetch-status");
         var names = (ligands || []).map(function(ligand) { return ligand.name; });
         var primaryLigand = ligands && ligands.length ? ligands[0].name : "";
+        setLigandDetectionState(ligands || []);
 
         console.log("[PSC] Detected ligands from " + sourceLabel + ":", (ligands || []).map(function(ligand) {
           return ligand.name + ":" + ligand.count;
@@ -1778,20 +1836,53 @@
         }
 
         if (!names.length) {
-          if (fetchStatus) {
-            fetchStatus.innerHTML += ' <span style="color:#64748b;">No ligand candidates detected.</span>';
-          }
+          setLigandDetectionMessage(
+            sourceLabel,
+            '<span style="color:#64748b;">No ligand detected in this structure.<br>You may manually enter a residue name.</span>'
+          );
           return;
         }
 
-        if (fetchStatus) {
-          fetchStatus.innerHTML += ' <span style="color:#64748b;">Detected ligands: ' + names.slice(0, 6).join(", ") + '</span>';
+        if (names.length === 1) {
+          setLigandDetectionMessage(sourceLabel, '<span style="color:#64748b;">Detected ligand: ' + names[0] + '</span>');
+        } else {
+          setLigandDetectionMessage(
+            sourceLabel,
+            '<span style="color:#64748b;">Detected ligand: ' + primaryLigand + '. Candidates: ' + names.slice(0, 6).join(", ") + '</span>'
+          );
         }
 
-        if (ligandInput && primaryLigand) {
+        if (ligandInput && primaryLigand && !isSkipLigandMode()) {
           ligandInput.value = primaryLigand;
           ligandInput.dispatchEvent(new Event("input", { bubbles: true }));
           ligandInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+
+      function isSkipLigandMode() {
+        var skipInput = document.getElementById("skip-ligand-mode");
+        return !!(skipInput && skipInput.checked);
+      }
+
+      function updateSkipLigandModeUI() {
+        var skipInput = document.getElementById("skip-ligand-mode");
+        var ligandInput = document.getElementById("ligand-analyze");
+        var statusEl = document.getElementById("analysis-status");
+        if (!skipInput || !ligandInput) return;
+
+        if (skipInput.checked) {
+          ligandInput.value = "";
+          ligandInput.disabled = true;
+          ligandInput.placeholder = "Ligand skipped";
+          if (statusEl) {
+            statusEl.innerHTML = '<span style="color:#3b82f6;">Skip ligand mode enabled. Protein-only structural analysis preview will be shown.</span>';
+          }
+        } else {
+          ligandInput.disabled = false;
+          ligandInput.placeholder = "e.g. MK1 / CLR";
+          if (statusEl && analysisFile.ready) {
+            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for analysis</span>';
+          }
         }
       }
 
@@ -1971,6 +2062,11 @@
       document.querySelectorAll(".drop-zone").forEach(function(zone) {
         setupDropZone(zone);
       });
+
+      var skipLigandInput = document.getElementById("skip-ligand-mode");
+      if (skipLigandInput) {
+        skipLigandInput.addEventListener("change", updateSkipLigandModeUI);
+      }
 
       // RCSB PDB fetch
       var fetchBtn = document.getElementById("fetch-pdb-btn");
@@ -2538,6 +2634,109 @@
         showError("Network error: " + (err.message || "Could not reach server"));
       }
 
+      function summarizeProteinOnlyPdb(pdbText) {
+        var chains = new Set();
+        var residues = new Set();
+        var atomCount = 0;
+        var hetatmCount = 0;
+
+        String(pdbText || "").split(/\r?\n/).forEach(function(line) {
+          var recordType = line.slice(0, 6).trim();
+          if (recordType === "ATOM") {
+            atomCount += 1;
+            var chainId = line.slice(21, 22).trim() || "(blank)";
+            var resName = line.slice(17, 20).trim();
+            var resId = line.slice(22, 26).trim();
+            chains.add(chainId);
+            residues.add(chainId + ":" + resName + ":" + resId);
+          } else if (recordType === "HETATM") {
+            hetatmCount += 1;
+          }
+        });
+
+        return {
+          atomCount: atomCount,
+          hetatmCount: hetatmCount,
+          chainCount: chains.size,
+          residueCount: residues.size
+        };
+      }
+
+      function renderProteinOnlyResult(analysisFile, summary) {
+        function esc(s) {
+          return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        if (!resultsContainer) {
+          resultsContainer = document.getElementById("results-container");
+        }
+
+        var container = resultsContainer || document.querySelector(".content");
+        if (!container) return;
+
+        var existing = container.querySelector(".main-area");
+        if (existing) existing.remove();
+
+        var errorBox = container.querySelector(".error-box");
+        if (errorBox) errorBox.remove();
+
+        var placeholder = container.querySelector(".placeholder");
+        if (placeholder) placeholder.style.display = "none";
+
+        var html = '<div class="main-area results-container fade-in">' +
+          '<div>' +
+            '<h2>Protein-only Structure</h2>' +
+            '<div class="info-box">Skip ligand mode is enabled. No ligand pocket analysis was run.</div>' +
+          '</div>' +
+          '<div>' +
+            '<h2>Structure Summary</h2>' +
+            '<div class="ai-dashboard">' +
+              '<div class="ai-dashboard-title">Protein-only structural analysis preview</div>' +
+              '<div class="ai-card"><h3>Input</h3><p>' + esc(analysisFile.name || "PDB file") + '</p></div>' +
+              '<div class="ai-card"><h3>Protein Records</h3><p>' +
+                summary.atomCount + ' ATOM records, ' +
+                summary.residueCount + ' residues, ' +
+                summary.chainCount + ' chain(s).</p></div>' +
+              '<div class="ai-card"><h3>Ligand Status</h3><p>No ligand residue was selected. You may manually enter a residue name to run ligand-pocket analysis.</p></div>' +
+              '<div class="ai-card"><h3>Future Support</h3><p>Protein-only structural analysis will expand to fold, chain, and residue-level summaries.</p></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        container.insertAdjacentHTML("beforeend", html);
+      }
+
+      function runProteinOnlyMode(analysisFile, btn) {
+        var fileObject = analysisFile.fileObject;
+        if (!fileObject || typeof fileObject.text !== "function") {
+          showInlineAnalysisInfo("Protein-only mode needs the PDB text. Please upload or fetch the structure again.");
+          return;
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          var label = btn.querySelector(".btn-label");
+          if (label) label.textContent = "Analyzing...";
+        }
+
+        fileObject.text()
+          .then(function(pdbText) {
+            renderProteinOnlyResult(analysisFile, summarizeProteinOnlyPdb(pdbText));
+            showInlineAnalysisInfo("Protein-only structural analysis preview generated.");
+          })
+          .catch(function(err) {
+            console.error("[PSC] Protein-only analysis failed:", err);
+            showInlineAnalysisInfo("Could not read the PDB text for protein-only mode. Please upload or fetch the structure again.");
+          })
+          .finally(function() {
+            if (btn) {
+              btn.disabled = false;
+              var label = btn.querySelector(".btn-label");
+              if (label) label.textContent = "Analyze Structure";
+            }
+          });
+      }
+
       function getAnalysisFileState() {
         return window.PSCAnalysisFile || {
           name: null,
@@ -2557,6 +2756,14 @@
         if (fetchStatus) fetchStatus.innerHTML = html;
       }
 
+      function showInlineAnalysisInfo(msg) {
+        var analysisStatus = document.getElementById("analysis-status");
+        var fetchStatus = document.getElementById("fetch-status");
+        var html = '<span style="color:#64748b;">' + msg + '</span>';
+        if (analysisStatus) analysisStatus.innerHTML = html;
+        if (fetchStatus) fetchStatus.innerHTML = html;
+      }
+
       // Intercept Single Analysis form submit
       var singleForm = document.querySelector("#tab-single form.analysis-form");
       console.log("[PSC] singleForm found:", !!singleForm);
@@ -2571,6 +2778,7 @@
           var ligandInput = document.getElementById("ligand-analyze");
           var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
           var analysisFile = getAnalysisFileState();
+          var skipLigandMode = isSkipLigandMode();
 
           console.log("[PSC] State:", {
             analysisFile: {
@@ -2580,7 +2788,9 @@
               hasFileObject: !!analysisFile.fileObject
             },
             ligandName: ligandName,
-            canAnalyze: analysisFile.ready && !!ligandName
+            skipLigandMode: skipLigandMode,
+            ligandDetection: window.PSCLigandDetectionState,
+            canAnalyze: analysisFile.ready && (!!ligandName || skipLigandMode)
           });
 
           // Validate
@@ -2590,8 +2800,14 @@
             return;
           }
 
+          if (!ligandName && skipLigandMode) {
+            console.log("[PSC] Running protein-only skip ligand mode");
+            runProteinOnlyMode(analysisFile, btn);
+            return;
+          }
+
           if (!ligandName) {
-            showInlineAnalysisError("Please enter a ligand name.");
+            showInlineAnalysisInfo("No ligand detected in this structure.<br>You may manually enter a residue name.");
             console.log("[PSC] ABORT: no ligand name");
             return;
           }
