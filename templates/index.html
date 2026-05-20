@@ -1172,28 +1172,106 @@
 
       <!-- Tab: WT vs Mutant Comparison -->
       <div class="tab-panel" id="tab-compare">
-        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form">
-          <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
-          <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
+        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form"
+              onsubmit="return window.PSCValidateCompareForm ? window.PSCValidateCompareForm(event, this) : true;">
+          <input type="hidden" name="wt_pdb_filename" id="wt-pdb-filename-hidden" value="">
+          <input type="hidden" name="mut_pdb_filename" id="mut-pdb-filename-hidden" value="">
+
           <div class="form-group">
-            <label>PDB ID (RCSB)</label>
+            <label>WT Structure: PDB ID (RCSB)</label>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="compare-pdb-id-input" class="text-input"
+              <input type="text" id="wt-pdb-id-input" class="text-input"
                      placeholder="e.g. 7VV4" style="max-width:160px;text-transform:uppercase;"
                      pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
-              <button type="button" id="compare-fetch-pdb-btn" class="btn-outline"
+              <button type="button" id="wt-fetch-pdb-btn" class="btn-outline"
                       style="padding:10px 18px;font-size:14px;white-space:nowrap;">
-                Fetch from RCSB
+                Fetch WT from RCSB
               </button>
-              <span id="compare-fetch-status" style="font-size:13px;"></span>
+              <span id="wt-fetch-status" style="font-size:13px;"></span>
             </div>
-            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
+            <div class="helper">Enter a 4-character WT PDB ID to download directly from RCSB.</div>
           </div>
 
           <div class="form-group">
-            <label>Current Structure</label>
-            <div class="structure-source-box warning" id="compare-structure-source">
-              Please load a structure from RCSB or upload a local PDB file first.
+            <label>Upload WT PDB</label>
+            <div class="drop-zone" id="drop-zone-wt">
+              <button type="button" class="remove-file-btn">✕ Remove</button>
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">🧬</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a WT PDB file</strong> or drag it here
+                </div>
+              </div>
+              <div class="file-card">
+                <div class="file-card-icon">🧬</div>
+                <div class="file-card-body">
+                  <div class="file-card-filename"></div>
+                  <div class="file-card-size"></div>
+                  <div class="file-card-status">
+                    <span class="check-circle">✓</span> WT PDB file ready
+                  </div>
+                </div>
+              </div>
+              <div class="file-change-hint">Click or drag to change file</div>
+              <input type="file" name="wt_file" accept=".pdb">
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
+
+          <div class="form-group">
+            <label>WT Loaded Status</label>
+            <div class="structure-source-box warning" id="wt-structure-source">
+              Please load WT structure from RCSB or upload a local WT PDB file first.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Mutant Structure: PDB ID (RCSB)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="mut-pdb-id-input" class="text-input"
+                     placeholder="e.g. 7VV4" style="max-width:160px;text-transform:uppercase;"
+                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
+              <button type="button" id="mut-fetch-pdb-btn" class="btn-outline"
+                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
+                Fetch Mutant from RCSB
+              </button>
+              <span id="mut-fetch-status" style="font-size:13px;"></span>
+            </div>
+            <div class="helper">Enter a 4-character mutant PDB ID to download directly from RCSB.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Upload Mutant PDB</label>
+            <div class="drop-zone" id="drop-zone-mut">
+              <button type="button" class="remove-file-btn">✕ Remove</button>
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">🧬</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a mutant PDB file</strong> or drag it here
+                </div>
+              </div>
+              <div class="file-card">
+                <div class="file-card-icon">🧬</div>
+                <div class="file-card-body">
+                  <div class="file-card-filename"></div>
+                  <div class="file-card-size"></div>
+                  <div class="file-card-status">
+                    <span class="check-circle">✓</span> Mutant PDB file ready
+                  </div>
+                </div>
+              </div>
+              <div class="file-change-hint">Click or drag to change file</div>
+              <input type="file" name="mut_file" accept=".pdb">
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Mutant Loaded Status</label>
+            <div class="structure-source-box warning" id="mut-structure-source">
+              Please load Mutant structure from RCSB or upload a local Mutant PDB file first.
             </div>
           </div>
 
@@ -1201,22 +1279,10 @@
             <label for="ligand-compare">Ligand Name</label>
             <input type="text" id="ligand-compare" class="text-input"
                    name="compare_ligand_name" placeholder="e.g. MK1 / CLR" required>
-            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB files.</div>
+            <div class="helper">Enter the 3-letter residue name of the ligand in both PDB files.</div>
           </div>
 
-          <div class="form-group">
-            <label for="compare-mutation-text">Mutation</label>
-            <input type="text" id="compare-mutation-text" class="text-input"
-                   name="compare_mutation_text" placeholder="e.g. R273H / K120A / Y220C">
-            <div class="helper">Optional single-letter mutation. Leave empty to compare the loaded WT pocket against itself as a baseline.</div>
-          </div>
-
-          <div class="form-group">
-            <label for="compare-chain-id">Chain ID (optional)</label>
-            <input type="text" id="compare-chain-id" class="text-input"
-                   name="compare_chain_id" placeholder="e.g. A">
-            <div class="helper">Specify a chain if your PDB contains multiple chains.</div>
-          </div>
+          <div id="compare-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
 
           <button type="submit" class="btn btn-secondary">
             <span class="btn-label">Compare Mutation</span>
@@ -1962,6 +2028,24 @@
       window.PSCAnalysisStructure = analysisStructure;
       window.PSCAnalysisFile = analysisFile;
 
+      function emptyStructureState() {
+        return {
+          name: null,
+          size: null,
+          source: null,
+          fileObject: null,
+          pdbFilename: null,
+          pdbText: null,
+          pdbId: null,
+          ready: false
+        };
+      }
+
+      var wtStructure = emptyStructureState();
+      var mutantStructure = emptyStructureState();
+      window.PSCWTStructure = wtStructure;
+      window.PSCMutantStructure = mutantStructure;
+
       function getStructureSourceText() {
         if (!analysisFile.ready) {
           return "Please load a structure from RCSB or upload a local PDB file first.";
@@ -1973,13 +2057,79 @@
       }
 
       function updateSharedStructurePanels() {
-        ["mutation-structure-source", "compare-structure-source"].forEach(function(id) {
+        ["mutation-structure-source"].forEach(function(id) {
           var el = document.getElementById(id);
           if (!el) return;
           el.textContent = getStructureSourceText();
           el.classList.toggle("ready", !!analysisFile.ready);
           el.classList.toggle("warning", !analysisFile.ready);
         });
+      }
+
+      function getCompareStructureText(kind, structure) {
+        var label = kind === "wt" ? "WT Structure" : "Mutant Structure";
+        var missing = kind === "wt"
+          ? "Please load WT structure from RCSB or upload a local WT PDB file first."
+          : "Please load Mutant structure from RCSB or upload a local Mutant PDB file first.";
+        if (!structure.ready) return missing;
+        if (structure.source === "rcsb") {
+          return label + ": " + (structure.pdbId || structure.name || "PDB") + " from RCSB";
+        }
+        return label + ": " + (structure.name || "PDB file") + " from Local Upload";
+      }
+
+      function updateCompareStructurePanel(kind) {
+        var structure = kind === "wt" ? wtStructure : mutantStructure;
+        var el = document.getElementById(kind === "wt" ? "wt-structure-source" : "mut-structure-source");
+        if (!el) return;
+        el.textContent = getCompareStructureText(kind, structure);
+        el.classList.toggle("ready", !!structure.ready);
+        el.classList.toggle("warning", !structure.ready);
+      }
+
+      function updateCompareStatus() {
+        var statusEl = document.getElementById("compare-status");
+        if (!statusEl) return;
+        if (wtStructure.ready && mutantStructure.ready) {
+          statusEl.innerHTML = '<span style="color:#22c55e;">✓ WT and mutant structures ready for comparison</span>';
+        } else {
+          statusEl.innerHTML = '';
+        }
+      }
+
+      function setCompareStructure(kind, state) {
+        var target = kind === "wt" ? wtStructure : mutantStructure;
+        Object.assign(target, emptyStructureState(), state);
+        if (kind === "wt") {
+          window.PSCWTStructure = target;
+        } else {
+          window.PSCMutantStructure = target;
+        }
+
+        var hiddenInput = document.getElementById(kind === "wt" ? "wt-pdb-filename-hidden" : "mut-pdb-filename-hidden");
+        if (hiddenInput) hiddenInput.value = target.pdbFilename || "";
+
+        var zone = document.getElementById(kind === "wt" ? "drop-zone-wt" : "drop-zone-mut");
+        var fileNameDisplay = zone ? zone.querySelector(".file-card-filename") : null;
+        var fileSizeDisplay = zone ? zone.querySelector(".file-card-size") : null;
+        var warning = zone ? zone.parentElement.querySelector(".file-size-warning") : null;
+        var error = zone ? zone.parentElement.querySelector(".file-error") : null;
+
+        if (zone) {
+          if (target.ready) {
+            zone.classList.add("has-file");
+            zone.classList.remove("has-error");
+            if (fileNameDisplay) fileNameDisplay.textContent = target.name || "";
+            if (fileSizeDisplay) fileSizeDisplay.textContent = target.size || "";
+            if (warning) warning.style.display = "none";
+            if (error) error.style.display = "none";
+          } else {
+            zone.classList.remove("has-file");
+          }
+        }
+
+        updateCompareStructurePanel(kind);
+        updateCompareStatus();
       }
 
       function setAnalysisFile(state) {
@@ -2054,6 +2204,10 @@
             if (zone.id === "drop-zone-analyze") {
               clearLigandCandidates();
               setAnalysisFile({ ready: false });
+            } else if (zone.id === "drop-zone-wt") {
+              setCompareStructure("wt", { ready: false });
+            } else if (zone.id === "drop-zone-mut") {
+              setCompareStructure("mut", { ready: false });
             }
             return;
           }
@@ -2088,6 +2242,36 @@
                   fetchStatus.innerHTML = '<span style="color:#ef4444;">Could not read PDB file.</span>';
                 }
               });
+          } else if (zone.id === "drop-zone-wt" || zone.id === "drop-zone-mut") {
+            var kind = zone.id === "drop-zone-wt" ? "wt" : "mut";
+            var compareStatus = document.getElementById(kind === "wt" ? "wt-fetch-status" : "mut-fetch-status");
+            if (compareStatus) {
+              compareStatus.innerHTML = '<span style="color:#3b82f6;">Reading local PDB...</span>';
+            }
+            file.text()
+              .then(function(pdbText) {
+                setCompareStructure(kind, {
+                  name: file.name,
+                  size: sizeStr,
+                  source: "local",
+                  fileObject: file,
+                  pdbFilename: null,
+                  pdbText: pdbText,
+                  pdbId: null,
+                  ready: true
+                });
+                if (compareStatus) {
+                  compareStatus.innerHTML = '<span style="color:#22c55e;">✓ Loaded from Local Upload: ' + file.name + '</span>';
+                }
+                updateLigandCandidates(detectLigandsFromPdbText(pdbText), "local", { statusEl: compareStatus });
+              })
+              .catch(function(err) {
+                console.error("[PSC] Could not read compare PDB file:", err);
+                setCompareStructure(kind, { ready: false });
+                if (compareStatus) {
+                  compareStatus.innerHTML = '<span style="color:#ef4444;">Could not read PDB file.</span>';
+                }
+              });
           }
 
           if (file.size > 10 * 1024 * 1024 && warning) {
@@ -2105,6 +2289,14 @@
             var ligandInput = document.getElementById("ligand-analyze");
             if (ligandInput) ligandInput.value = "";
             setAnalysisFile({ ready: false });
+          } else if (zone.id === "drop-zone-wt") {
+            var wtStatus = document.getElementById("wt-fetch-status");
+            if (wtStatus) wtStatus.innerHTML = "";
+            setCompareStructure("wt", { ready: false });
+          } else if (zone.id === "drop-zone-mut") {
+            var mutStatus = document.getElementById("mut-fetch-status");
+            if (mutStatus) mutStatus.innerHTML = "";
+            setCompareStructure("mut", { ready: false });
           }
         }
 
@@ -2146,15 +2338,21 @@
         setupDropZone(zone);
       });
       updateSharedStructurePanels();
+      updateCompareStructurePanel("wt");
+      updateCompareStructurePanel("mut");
 
       var skipLigandInput = document.getElementById("skip-ligand-mode");
       if (skipLigandInput) {
         skipLigandInput.addEventListener("change", updateSkipLigandModeUI);
       }
 
-      function syncRcsbFileInput(pdbFile) {
-        var analyzeDropZone = document.getElementById("drop-zone-analyze");
-        var fileInput = analyzeDropZone ? analyzeDropZone.querySelector('input[type="file"]') : null;
+      function syncRcsbFileInput(pdbFile, target) {
+        var zoneId = "drop-zone-analyze";
+        if (target === "wt") zoneId = "drop-zone-wt";
+        if (target === "mut") zoneId = "drop-zone-mut";
+
+        var zone = document.getElementById(zoneId);
+        var fileInput = zone ? zone.querySelector('input[type="file"]') : null;
         if (!fileInput) return;
 
         var dt = new DataTransfer();
@@ -2179,6 +2377,7 @@
         var normalizedPdbId = String(pdbId || "").trim().toUpperCase();
         var statusEl = options.statusEl || document.getElementById("fetch-status");
         var button = options.button || null;
+        var target = options.target || "current";
 
         if (!normalizedPdbId || normalizedPdbId.length !== 4) {
           if (statusEl) {
@@ -2202,8 +2401,12 @@
               if (statusEl) {
                 statusEl.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
               }
-              clearLigandCandidates();
-              setAnalysisFile({ ready: false });
+              if (target === "current") {
+                clearLigandCandidates();
+                setAnalysisFile({ ready: false });
+              } else {
+                setCompareStructure(target, { ready: false });
+              }
               return false;
             }
 
@@ -2215,9 +2418,7 @@
                 }
 
                 var pdbFile = new File([pdbText], normalizedPdbId + ".pdb", { type: "chemical/x-pdb" });
-                syncRcsbFileInput(pdbFile);
-
-                setAnalysisFile({
+                var loadedState = {
                   name: normalizedPdbId + ".pdb",
                   size: formatSize(pdbFile.size),
                   source: "rcsb",
@@ -2226,7 +2427,14 @@
                   pdbText: pdbText,
                   pdbId: data.pdb_id || normalizedPdbId,
                   ready: true
-                });
+                };
+                syncRcsbFileInput(pdbFile, target);
+
+                if (target === "current") {
+                  setAnalysisFile(loadedState);
+                } else {
+                  setCompareStructure(target, loadedState);
+                }
 
                 if (statusEl) {
                   statusEl.innerHTML = '<span style="color:#22c55e;">✓ Loaded from RCSB: ' + normalizedPdbId + '.pdb</span>';
@@ -2238,7 +2446,9 @@
                   });
                 }
                 updateLigandCandidates(detectedLigands, "rcsb", { statusEl: statusEl });
-                refreshCurrentStructureViewer(pdbText);
+                if (target === "current") {
+                  refreshCurrentStructureViewer(pdbText);
+                }
                 return true;
               });
           })
@@ -2247,8 +2457,12 @@
             if (statusEl) {
               statusEl.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
             }
-            clearLigandCandidates();
-            setAnalysisFile({ ready: false });
+            if (target === "current") {
+              clearLigandCandidates();
+              setAnalysisFile({ ready: false });
+            } else {
+              setCompareStructure(target, { ready: false });
+            }
             return false;
           })
           .finally(function() {
@@ -2257,7 +2471,7 @@
       }
       window.PSCFetchStructureFromRCSB = fetchStructureFromRCSB;
 
-      function setupRcsbFetchControls(inputId, buttonId, statusId) {
+      function setupRcsbFetchControls(inputId, buttonId, statusId, target) {
         var pdbIdInput = document.getElementById(inputId);
         var fetchBtn = document.getElementById(buttonId);
         var fetchStatus = document.getElementById(statusId);
@@ -2266,7 +2480,8 @@
         fetchBtn.addEventListener("click", function() {
           fetchStructureFromRCSB(pdbIdInput.value, {
             button: fetchBtn,
-            statusEl: fetchStatus
+            statusEl: fetchStatus,
+            target: target || "current"
           });
         });
 
@@ -2278,9 +2493,10 @@
         });
       }
 
-      setupRcsbFetchControls("pdb-id-input", "fetch-pdb-btn", "fetch-status");
-      setupRcsbFetchControls("mutation-pdb-id-input", "mutation-fetch-pdb-btn", "mutation-fetch-status");
-      setupRcsbFetchControls("compare-pdb-id-input", "compare-fetch-pdb-btn", "compare-fetch-status");
+      setupRcsbFetchControls("pdb-id-input", "fetch-pdb-btn", "fetch-status", "current");
+      setupRcsbFetchControls("mutation-pdb-id-input", "mutation-fetch-pdb-btn", "mutation-fetch-status", "current");
+      setupRcsbFetchControls("wt-pdb-id-input", "wt-fetch-pdb-btn", "wt-fetch-status", "wt");
+      setupRcsbFetchControls("mut-pdb-id-input", "mut-fetch-pdb-btn", "mut-fetch-status", "mut");
     })();
   </script>
 
@@ -2880,8 +3096,6 @@
         var box = null;
         if (form && form.closest("#tab-mutation")) {
           box = document.getElementById("mutation-structure-source");
-        } else if (form && form.closest("#tab-compare")) {
-          box = document.getElementById("compare-structure-source");
         }
         if (!box) return;
         box.textContent = isError ? "Please load a structure from RCSB or upload a local PDB file first." : currentStructureMessage(file);
@@ -2906,6 +3120,32 @@
           }
         }
       }
+
+      function syncCompareForm() {
+        var wtHidden = document.getElementById("wt-pdb-filename-hidden");
+        var mutHidden = document.getElementById("mut-pdb-filename-hidden");
+        if (wtHidden) wtHidden.value = wtStructure.pdbFilename || "";
+        if (mutHidden) mutHidden.value = mutantStructure.pdbFilename || "";
+      }
+
+      function showCompareError(msg) {
+        var statusEl = document.getElementById("compare-status");
+        var html = '<span style="color:#ef4444;">' + msg + '</span>';
+        if (statusEl) statusEl.innerHTML = html;
+      }
+
+      function validateCompareForm(event, form) {
+        if (!wtStructure.ready || !mutantStructure.ready) {
+          if (event) event.preventDefault();
+          showCompareError("Please load both WT and mutant structures from RCSB or local PDB files first.");
+          updateCompareStructurePanel("wt");
+          updateCompareStructurePanel("mut");
+          return false;
+        }
+        syncCompareForm();
+        return true;
+      }
+      window.PSCValidateCompareForm = validateCompareForm;
 
       function showInlineAnalysisError(msg) {
         var analysisStatus = document.getElementById("analysis-status");
@@ -3080,15 +3320,22 @@
       document.querySelectorAll("#tab-mutation form.analysis-form, #tab-compare form.analysis-form").forEach(function(form) {
         form.setAttribute("novalidate", "novalidate");
         form.addEventListener("submit", function(e) {
-          var file = getAnalysisFileState();
-          if (!file.ready) {
-            e.preventDefault();
-            setSharedStructureMessage(form, file, true);
-            return;
-          }
+          var isCompareForm = !!form.closest("#tab-compare");
+          if (isCompareForm) {
+            if (!validateCompareForm(e, form)) {
+              return;
+            }
+          } else {
+            var file = getAnalysisFileState();
+            if (!file.ready) {
+              e.preventDefault();
+              setSharedStructureMessage(form, file, true);
+              return;
+            }
 
-          syncSharedStructureForm(form, file);
-          setSharedStructureMessage(form, file, false);
+            syncSharedStructureForm(form, file);
+            setSharedStructureMessage(form, file, false);
+          }
 
           var btn = form.querySelector("button[type=submit]");
           if (btn) {

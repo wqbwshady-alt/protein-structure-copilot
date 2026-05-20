@@ -133,6 +133,25 @@ def resolve_loaded_structure(file_fields, prefix=""):
     return None, None, "Please load a structure from RCSB or upload a local PDB file first."
 
 
+def resolve_structure_input(filename_field, file_field, prefix, missing_message):
+    pdb_filename = request.form.get(filename_field, "").strip()
+
+    if pdb_filename:
+        filename = secure_filename(pdb_filename)
+        pdb_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.isfile(pdb_path):
+            return None, None, "Fetched PDB file no longer available. Please re-fetch."
+        if not is_pdb_file(pdb_path):
+            return None, None, "Loaded PDB file does not contain ATOM or HETATM records."
+        return filename, pdb_path, None
+
+    pdb_file = request.files.get(file_field)
+    if pdb_file and pdb_file.filename:
+        return save_uploaded_pdb(pdb_file, prefix=prefix)
+
+    return None, None, missing_message
+
+
 def write_result_file(filename, text):
     path = os.path.join(RESULT_FOLDER, filename)
 
@@ -494,187 +513,28 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
 
 @app.route("/compare", methods=["POST"])
 def compare():
-    mutation_text = (
-        request.form.get("compare_mutation_text", "").strip().upper() or
-        request.form.get("mutation_text", "").strip().upper()
-    )
-    chain_id = (
-        request.form.get("compare_chain_id", "").strip() or
-        request.form.get("mutation_chain_id", "").strip()
-    )
     ligand_name = request.form.get("compare_ligand_name", "").strip().upper()
-
-    if mutation_text:
-        filename, pdb_path, error_text = resolve_loaded_structure(
-            ("pdb_file", "wt_file"),
-            prefix="COMPARE_"
-        )
-
-        if error_text:
-            return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-        if not ligand_name:
-            error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
-            return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-        try:
-            mutation_result = analyze_mutation_scan(
-                pdb_path,
-                ligand_name,
-                mutation_text,
-                chain_id=chain_id or None
-            )
-        except MutationScanError as error:
-            error_text = str(error)
-            return render_index(
-                result_text=error_text,
-                ai_html=make_html(error_text),
-                pdb_url=url_for("uploaded_file", filename=filename)
-            )
-
-        contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
-            pdb_path,
-            ligand_name
-        )
-
-        pymol_filename = generate_pymol_script(
-            pdb_path,
-            ligand_name,
-            contact_residues,
-            RESULT_FOLDER,
-            output_prefix=f"compare_{uuid4().hex[:8]}"
-        )
-        wt_report_text, wt_ai_text = build_report(
-            ligand_name,
-            contact_residues,
-            counts,
-            primary_interpretation,
-            pymol_filename,
-            interactions
-        )
-
-        mutation_scan_text = build_mutation_scan_report(mutation_result)
-        comparison_text = (
-            "WT vs Mutant Heuristic Comparison\n\n"
-            f"Target ligand: {ligand_name}\n"
-            f"Mutation: {mutation_result['mutation']}\n"
-            f"Chain: {mutation_result['chain_id']}\n\n"
-            f"{mutation_scan_text}"
-        )
-        lost_residues, gained_residues = mutation_residue_highlights(mutation_result)
-
-        write_result_file(
-            f"mutation_comparison_report_{uuid4().hex}.txt",
-            comparison_text
-        )
-
-        return render_index(
-            result_text=wt_report_text,
-            ai_html=make_html(wt_ai_text),
-            pdb_url=url_for("uploaded_file", filename=filename),
-            interaction_data=interactions,
-            comparison_text=comparison_text,
-            lost_residues=lost_residues,
-            gained_residues=gained_residues,
-            hotspot_residues=get_hotspot_residues(interactions),
-            mutation_scan_result=mutation_result,
-            mutation_scan_text=mutation_scan_text
-        )
-
-    has_shared_structure = bool(
-        request.form.get("pdb_filename", "").strip() or
-        (request.files.get("pdb_file") and request.files.get("pdb_file").filename)
-    )
-
-    if has_shared_structure:
-        filename, pdb_path, error_text = resolve_loaded_structure(
-            ("pdb_file",),
-            prefix="COMPARE_"
-        )
-
-        if error_text:
-            return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-        if not ligand_name:
-            error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
-            return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-        contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
-            pdb_path,
-            ligand_name
-        )
-
-        if contact_residues is None:
-            result_text = (
-                f"No ligand named {ligand_name} found in the loaded PDB file.\n"
-                f"{format_ligand_suggestions(list_ligands(pdb_path))}"
-            )
-            return render_index(
-                result_text=result_text,
-                ai_html=make_html(result_text),
-                pdb_url=url_for("uploaded_file", filename=filename)
-            )
-
-        pymol_filename = generate_pymol_script(
-            pdb_path,
-            ligand_name,
-            contact_residues,
-            RESULT_FOLDER,
-            output_prefix=f"compare_{uuid4().hex[:8]}"
-        )
-        wt_report_text, wt_ai_text = build_report(
-            ligand_name,
-            contact_residues,
-            counts,
-            primary_interpretation,
-            pymol_filename,
-            interactions
-        )
-        comparison_text, lost, gained = build_comparison_report(
-            ligand_name,
-            contact_residues,
-            contact_residues,
-            counts,
-            counts
-        )
-
-        write_result_file(
-            f"mutation_comparison_report_{uuid4().hex}.txt",
-            comparison_text
-        )
-
-        return render_index(
-            result_text=wt_report_text,
-            ai_html=make_html(wt_ai_text),
-            pdb_url=url_for("uploaded_file", filename=filename),
-            interaction_data=interactions,
-            comparison_text=comparison_text,
-            lost_residues=residue_keys_to_json(lost),
-            gained_residues=residue_keys_to_json(gained),
-            hotspot_residues=get_hotspot_residues(interactions)
-        )
-
-    wt_file = request.files.get("wt_file")
-    mut_file = request.files.get("mut_file")
-
-    if not wt_file or wt_file.filename == "":
-        error_text = "Please upload WT PDB file."
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
-
-    if not mut_file or mut_file.filename == "":
-        error_text = "Please upload Mutant PDB file."
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     if not ligand_name:
         error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
-    wt_filename, wt_path, error_text = save_uploaded_pdb(wt_file, prefix="WT_")
+    wt_filename, wt_path, error_text = resolve_structure_input(
+        "wt_pdb_filename",
+        "wt_file",
+        "WT_",
+        "Please load WT structure from RCSB or upload a local WT PDB file first."
+    )
 
     if error_text:
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
-    mut_filename, mut_path, error_text = save_uploaded_pdb(mut_file, prefix="MUT_")
+    mut_filename, mut_path, error_text = resolve_structure_input(
+        "mut_pdb_filename",
+        "mut_file",
+        "MUT_",
+        "Please load Mutant structure from RCSB or upload a local Mutant PDB file first."
+    )
 
     if error_text:
         return render_index(result_text=error_text, ai_html=make_html(error_text))

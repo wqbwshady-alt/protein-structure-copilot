@@ -206,13 +206,18 @@ class AppTest(unittest.TestCase):
         self.assertIn(b"Mutation Impact Summary", response.data)
         self.assertIn(b"D25A", response.data)
 
-    def test_compare_accepts_loaded_structure_and_mutation(self):
+    def test_compare_accepts_loaded_wt_and_mutant_filenames(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
+        mutant_path = os.path.join(ROOT_DIR, "data", "1HSG_V82A_mutant.pdb")
 
         with tempfile.TemporaryDirectory() as upload_dir:
-            loaded_name = "RCSB_1HSG_test.pdb"
-            loaded_path = os.path.join(upload_dir, loaded_name)
-            with open(pdb_path, "rb") as src, open(loaded_path, "wb") as dst:
+            wt_name = "RCSB_1HSG_test.pdb"
+            mut_name = "RCSB_1HSG_V82A_test.pdb"
+            wt_loaded_path = os.path.join(upload_dir, wt_name)
+            mut_loaded_path = os.path.join(upload_dir, mut_name)
+            with open(pdb_path, "rb") as src, open(wt_loaded_path, "wb") as dst:
+                dst.write(src.read())
+            with open(mutant_path, "rb") as src, open(mut_loaded_path, "wb") as dst:
                 dst.write(src.read())
 
             with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
@@ -220,37 +225,14 @@ class AppTest(unittest.TestCase):
                     "/compare",
                     data={
                         "compare_ligand_name": "MK1",
-                        "compare_mutation_text": "D25A",
-                        "compare_chain_id": "A",
-                        "pdb_filename": loaded_name
-                    }
-                )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"WT vs Mutant Heuristic Comparison", response.data)
-        self.assertIn(b"D25A", response.data)
-
-    def test_compare_accepts_loaded_structure_without_mutation_as_baseline(self):
-        pdb_path = os.path.join(ROOT_DIR, "data", "7VV4.pdb")
-
-        with tempfile.TemporaryDirectory() as upload_dir:
-            loaded_name = "RCSB_7VV4_test.pdb"
-            loaded_path = os.path.join(upload_dir, loaded_name)
-            with open(pdb_path, "rb") as src, open(loaded_path, "wb") as dst:
-                dst.write(src.read())
-
-            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
-                response = self.client.post(
-                    "/compare",
-                    data={
-                        "compare_ligand_name": "CLR",
-                        "pdb_filename": loaded_name
+                        "wt_pdb_filename": wt_name,
+                        "mut_pdb_filename": mut_name
                     }
                 )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"WT vs Mutant Pocket Comparison", response.data)
-        self.assertIn(b"Target ligand: CLR", response.data)
+        self.assertIn(b"Target ligand: MK1", response.data)
 
 
 if __name__ == "__main__":
