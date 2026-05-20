@@ -1,8 +1,11 @@
+import csv
+import io
+import json
 import os
 from uuid import uuid4
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, send_from_directory, url_for
+from flask import Flask, jsonify, render_template, request, send_from_directory, url_for
 from markupsafe import escape
 from werkzeug.utils import secure_filename
 
@@ -38,6 +41,8 @@ def empty_page_context(**overrides):
         "ai_html": "",
         "pdb_url": None,
         "report_download_url": None,
+        "json_download_url": None,
+        "csv_download_url": None,
         "interaction_data": [],
         "comparison_text": None,
         "mutation_scan_result": None,
@@ -96,23 +101,55 @@ def index():
     return render_index()
 
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    pdb_file = request.files.get("pdb_file")
-    ligand_name = request.form.get("ligand_name", "").strip().upper()
+    result = _run_analyze(request)
+    if not result["success"]:
+        return render_index(
+            result_text=result["error_text"],
+            ai_html=result["ai_html"],
+            pdb_url=result.get("pdb_url")
+        )
+    return render_index(**result)
+
+
+@app.route("/analyze_async", methods=["POST"])
+def analyze_async():
+    result = _run_analyze(request)
+    return jsonify(result)
+
+
+def _run_analyze(req):
+    pdb_file = req.files.get("pdb_file")
+    ligand_name = req.form.get("ligand_name", "").strip().upper()
 
     if not pdb_file or pdb_file.filename == "":
-        error_text = "Please upload a PDB file."
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
+        return {
+            "success": False,
+            "error_text": "Please upload a PDB file.",
+            "ai_html": make_html("Please upload a PDB file.")
+        }
 
     if not ligand_name:
-        error_text = "Please enter ligand name, for example: MK1 / CLR."
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
+        return {
+            "success": False,
+            "error_text": "Please enter ligand name, for example: MK1 / CLR.",
+            "ai_html": make_html("Please enter ligand name, for example: MK1 / CLR.")
+        }
 
     filename, pdb_path, error_text = save_uploaded_pdb(pdb_file)
 
     if error_text:
-        return render_index(result_text=error_text, ai_html=make_html(error_text))
+        return {
+            "success": False,
+            "error_text": error_text,
+            "ai_html": make_html(error_text)
+        }
 
     contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
         pdb_path,
@@ -124,11 +161,12 @@ def analyze():
             f"No ligand named {ligand_name} found in this PDB file.\n"
             f"{format_ligand_suggestions(list_ligands(pdb_path))}"
         )
-        return render_index(
-            result_text=result_text,
-            ai_html=make_html(result_text),
-            pdb_url=url_for("uploaded_file", filename=filename)
-        )
+        return {
+            "success": False,
+            "error_text": result_text,
+            "ai_html": make_html(result_text),
+            "pdb_url": url_for("uploaded_file", filename=filename)
+        }
 
     pymol_filename = generate_pymol_script(
         os.path.join(UPLOAD_FOLDER, filename),
@@ -152,14 +190,39 @@ def analyze():
         report_text
     )
 
-    return render_index(
-        result_text=report_text,
-        ai_html=make_html(ai_text),
-        pdb_url=url_for("uploaded_file", filename=filename),
-        report_download_url=url_for("download_report", filename=report_filename),
-        interaction_data=interactions,
-        hotspot_residues=get_hotspot_residues(interactions)
+    json_filename = write_result_file(
+        f"pocket_data_{uuid4().hex}.json",
+        json.dumps(interactions, indent=2)
     )
+
+    csv_buf = io.StringIO()
+    csv_writer = csv.writer(csv_buf)
+    csv_writer.writerow(["chain_id", "res_name", "res_id", "interaction_type",
+                         "distance", "ligand_atom", "protein_atom", "element"])
+    for item in interactions:
+        csv_writer.writerow([
+            item["chain_id"], item["res_name"], item["res_id"],
+            item["interaction_type"], item["distance"],
+            item["ligand_atom"], item["atom_name"], item["element"]
+        ])
+    csv_filename = write_result_file(
+        f"pocket_data_{uuid4().hex}.csv",
+        csv_buf.getvalue()
+    )
+
+    return {
+        "success": True,
+        "result_text": report_text,
+        "ai_html": make_html(ai_text),
+        "pdb_url": url_for("uploaded_file", filename=filename),
+        "report_download_url": url_for("download_report", filename=report_filename),
+        "json_download_url": url_for("download_report_json", filename=json_filename),
+        "csv_download_url": url_for("download_report_csv", filename=csv_filename),
+        "interaction_data": interactions,
+        "hotspot_residues": get_hotspot_residues(interactions),
+        "lost_residues": [],
+        "gained_residues": []
+    }
 
 
 @app.route("/compare", methods=["POST"])
@@ -318,6 +381,16 @@ def uploaded_file(filename):
 
 @app.route("/download_report/<path:filename>")
 def download_report(filename):
+    return send_from_directory(RESULT_FOLDER, filename, as_attachment=True)
+
+
+@app.route("/download_report_json/<path:filename>")
+def download_report_json(filename):
+    return send_from_directory(RESULT_FOLDER, filename, as_attachment=True)
+
+
+@app.route("/download_report_csv/<path:filename>")
+def download_report_csv(filename):
     return send_from_directory(RESULT_FOLDER, filename, as_attachment=True)
 
 

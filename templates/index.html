@@ -2,71 +2,275 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Protein Structure Copilot</title>
 
   <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
 
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
     body {
-      font-family: Arial, sans-serif;
-      background: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f1f5f9;
       margin: 0;
-      padding: 40px;
+      padding: 24px;
+      color: #1e293b;
     }
 
     .container {
       max-width: 1300px;
       margin: auto;
       background: white;
-      padding: 30px;
-      border-radius: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      overflow: hidden;
     }
 
-    h1 {
-      margin-top: 0;
-      font-size: 34px;
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: white;
+      padding: 32px 36px;
     }
 
-    h2 {
-      margin-top: 40px;
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
     }
 
-    input {
-      padding: 10px;
-      width: 320px;
+    .header p {
+      margin: 8px 0 0 0;
+      color: #94a3b8;
+      font-size: 15px;
+    }
+
+    .content { padding: 32px 36px; }
+
+    /* Tab navigation */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 28px;
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: #1e293b; }
+    .tab-btn.active {
+      color: #2563eb;
+      border-bottom-color: #2563eb;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Form styling */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    .form-group .helper {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .text-input {
+      padding: 10px 14px;
+      width: 100%;
+      max-width: 400px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .text-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: #f8fafc;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .drop-zone.has-file {
+      border-color: #22c55e;
+      background: #f0fdf4;
+    }
+
+    .drop-zone.has-error {
+      border-color: #ef4444;
+      background: #fef2f2;
+    }
+
+    .drop-zone-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .drop-zone-text {
+      font-size: 14px;
+      color: #64748b;
+    }
+
+    .drop-zone-text strong {
+      color: #2563eb;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-info {
+      display: none;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #334155;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .drop-zone.has-file .file-info { display: flex; }
+    .drop-zone.has-file .drop-zone-placeholder { display: none; }
+
+    .file-info .check {
+      color: #22c55e;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .file-size-warning {
+      display: none;
       margin-top: 8px;
+      font-size: 12px;
+      color: #d97706;
+      background: #fef3c7;
+      padding: 6px 12px;
+      border-radius: 6px;
     }
 
-    button, .download-btn {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 20px;
+    .file-error {
+      display: none;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #dc2626;
+      background: #fee2e2;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
       background: #2563eb;
       color: white;
       border: none;
       border-radius: 10px;
-      font-weight: bold;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    .btn:hover { background: #1d4ed8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary { background: #7c3aed; }
+    .btn-secondary:hover { background: #6d28d9; }
+
+    .btn-outline {
+      background: white;
+      color: #2563eb;
+      border: 1.5px solid #2563eb;
+    }
+    .btn-outline:hover { background: #eff6ff; }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      margin-right: 8px;
+      padding: 10px 18px;
+      background: #0f172a;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
       text-decoration: none;
       cursor: pointer;
+      transition: background 0.2s;
     }
 
-    .compare-btn {
-      background: #7c3aed;
-    }
+    .download-btn:hover { background: #1e293b; }
+    .download-btn.json { background: #059669; }
+    .download-btn.json:hover { background: #047857; }
+    .download-btn.csv { background: #0891b2; }
+    .download-btn.csv:hover { background: #0e7490; }
 
+    /* Main area grid */
     .main-area {
       display: grid;
       grid-template-columns: minmax(0, 2fr) minmax(380px, 1fr);
       gap: 24px;
-      margin-top: 30px;
+      margin-top: 24px;
       align-items: start;
     }
 
+    @media (max-width: 900px) {
+      .main-area { grid-template-columns: 1fr; }
+    }
+
+    /* Viewer */
     .viewer-box {
       width: 100%;
       height: 560px;
-      border: 1px solid #ddd;
+      border: 1px solid #e2e8f0;
       border-radius: 12px;
       overflow: hidden;
       position: relative;
@@ -93,15 +297,14 @@
       border-radius: 10px;
       border: none;
       cursor: pointer;
-      font-weight: bold;
+      font-weight: 600;
       font-size: 13px;
-      margin-top: 0;
     }
 
-    .tool-btn:hover {
-      background: #1e293b;
-    }
+    .tool-btn:hover { background: #1e293b; }
+    .tool-btn.active { background: #2563eb; }
 
+    /* AI Dashboard */
     .ai-dashboard {
       background: #0f172a;
       color: white;
@@ -113,10 +316,9 @@
     }
 
     .ai-dashboard-title {
-      font-size: 22px;
-      font-weight: 800;
+      font-size: 20px;
+      font-weight: 700;
       margin-bottom: 18px;
-      letter-spacing: 0.3px;
     }
 
     .ai-card {
@@ -130,7 +332,7 @@
     .ai-card h3 {
       margin: 0 0 10px 0;
       color: #60a5fa;
-      font-size: 16px;
+      font-size: 15px;
     }
 
     .ai-card p,
@@ -156,7 +358,7 @@
       border-radius: 10px;
       cursor: pointer;
       margin-bottom: 8px;
-      transition: 0.2s;
+      transition: background 0.2s, transform 0.2s;
       font-size: 14px;
     }
 
@@ -199,11 +401,14 @@
     }
 
     .placeholder {
-      margin-top: 30px;
-      padding: 30px;
-      background: #f9fafb;
+      margin-top: 24px;
+      padding: 32px;
+      background: #f8fafc;
+      border: 2px dashed #e2e8f0;
       border-radius: 12px;
-      color: #6b7280;
+      color: #64748b;
+      text-align: center;
+      font-size: 15px;
     }
 
     .error-box {
@@ -213,20 +418,24 @@
       border: 1px solid #fecaca;
       border-radius: 12px;
       color: #991b1b;
-      font-weight: bold;
+      font-weight: 600;
     }
 
+    .section-divider {
+      margin-top: 50px;
+      margin-bottom: 30px;
+      border-top: 2px solid #e5e7eb;
+    }
+
+    /* Legend */
     .legend {
       margin-top: 10px;
-      font-size: 14px;
+      font-size: 13px;
       color: #4b5563;
       line-height: 1.8;
     }
 
-    .yellow-dot,
-    .red-dot,
-    .green-dot,
-    .orange-dot {
+    .yellow-dot, .red-dot, .green-dot, .orange-dot {
       display: inline-block;
       width: 12px;
       height: 12px;
@@ -235,21 +444,10 @@
       margin-right: 6px;
     }
 
-    .yellow-dot {
-      background: yellow;
-    }
-
-    .red-dot {
-      background: red;
-    }
-
-    .green-dot {
-      background: limegreen;
-    }
-
-    .orange-dot {
-      background: orange;
-    }
+    .yellow-dot { background: yellow; }
+    .red-dot { background: red; }
+    .green-dot { background: limegreen; }
+    .orange-dot { background: orange; }
 
     .blue-dot {
       display: inline-block;
@@ -271,650 +469,1532 @@
       background: #a3e635;
     }
 
-    .section-divider {
-      margin-top: 50px;
-      margin-bottom: 30px;
-      border-top: 2px solid #e5e7eb;
-    }
-
     details summary {
       cursor: pointer;
       color: #93c5fd;
       font-weight: bold;
       margin-top: 8px;
     }
+
+    /* Loading overlay (fallback for non-AJAX forms) */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.7);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .loading-overlay.active { display: flex; }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    /* Progress panel */
+    .progress-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.75);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .progress-overlay.active { display: flex; }
+
+    .progress-panel {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px;
+      padding: 40px 44px;
+      width: 440px;
+      max-width: 92vw;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+    }
+
+    .progress-title {
+      color: white;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 32px;
+      letter-spacing: -0.2px;
+    }
+
+    .progress-stages {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .progress-stage {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #475569;
+      font-size: 14px;
+      transition: color 0.3s;
+    }
+
+    .progress-stage.active {
+      color: white;
+    }
+
+    .progress-stage.done {
+      color: #64748b;
+    }
+
+    .stage-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+
+    .progress-stage.pending .stage-icon {
+      border: 2px solid #334155;
+      background: transparent;
+    }
+
+    .progress-stage.active .stage-icon {
+      border: 2px solid #60a5fa;
+      background: rgba(96,165,250,0.15);
+      box-shadow: 0 0 12px rgba(96,165,250,0.25);
+    }
+
+    .progress-stage.done .stage-icon {
+      border: 2px solid #22c55e;
+      background: rgba(34,197,94,0.15);
+    }
+
+    .stage-icon-inner {
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .progress-stage.active .stage-icon-inner {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #60a5fa;
+      animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+
+    .progress-stage.done .stage-icon-inner {
+      color: #22c55e;
+      font-weight: bold;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.65); }
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 4px;
+      background: #334155;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #60a5fa);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    .progress-done-message {
+      display: none;
+      text-align: center;
+      color: #22c55e;
+      font-weight: 600;
+      font-size: 14px;
+      margin-top: 16px;
+      animation: fadeInUp 0.4s ease;
+    }
+
+    .progress-done-message.show { display: block; }
+
+    .progress-error-message {
+      display: none;
+      text-align: center;
+      color: #f87171;
+      font-weight: 600;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+
+    .progress-error-message.show { display: block; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Fade in results */
+    .results-container {
+      transition: opacity 0.5s ease;
+    }
+
+    .results-container.fade-in {
+      animation: fadeInUp 0.5s ease;
+    }
+
+    /* Mutation result cards */
+    .mutation-card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .mutation-card-grid { grid-template-columns: 1fr; }
+      .header { padding: 24px 20px; }
+      .content { padding: 20px; }
+      .tab-btn { padding: 10px 14px; font-size: 13px; }
+    }
   </style>
 </head>
 
 <body>
+  <!-- Loading overlay (fallback) -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Analyzing structure...</div>
+  </div>
+
+  <!-- Progress panel -->
+  <div class="progress-overlay" id="progress-overlay">
+    <div class="progress-panel">
+      <div class="progress-title" id="progress-title">Analyzing Structure</div>
+      <div class="progress-stages" id="progress-stages">
+        <div class="progress-stage pending" data-stage="0">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>Reading PDB structure</span>
+        </div>
+        <div class="progress-stage pending" data-stage="1">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>Detecting ligands</span>
+        </div>
+        <div class="progress-stage pending" data-stage="2">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>Calculating pocket contacts</span>
+        </div>
+        <div class="progress-stage pending" data-stage="3">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>Generating interaction data</span>
+        </div>
+        <div class="progress-stage pending" data-stage="4">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>Preparing 3D visualization</span>
+        </div>
+        <div class="progress-stage pending" data-stage="5">
+          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+          <span>AI structural interpretation</span>
+        </div>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+      <div class="progress-done-message" id="progress-done-message">Analysis complete</div>
+      <div class="progress-error-message" id="progress-error-message"></div>
+    </div>
+  </div>
+
   <div class="container">
 
-    <h1>Protein Structure Copilot</h1>
+    <!-- Header -->
+    <div class="header">
+      <h1>Protein Structure Copilot</h1>
+      <p>Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
+    </div>
 
-    <h2>Single Structure Analysis</h2>
+    <div class="content">
 
-    <form action="/analyze" method="post" enctype="multipart/form-data">
-      <p>PDB 文件：</p>
-      <input type="file" name="pdb_file" required>
-
-      <p>Ligand 名称：</p>
-      <input type="text" name="ligand_name" placeholder="例如：MK1 / CLR" required>
-
-      <br>
-      <button type="submit">Analyze Structure</button>
-    </form>
-
-    {% if pdb_url %}
-
-      <div class="main-area">
-
-        <div>
-          <h2>3D Structure Viewer</h2>
-
-          <div class="viewer-box">
-            <div id="viewer"></div>
-          </div>
-
-          <div class="viewer-tools">
-            <button class="tool-btn" id="reset-view-btn">Reset View</button>
-            <button class="tool-btn" id="pocket-view-btn">Show Ligand Pocket</button>
-            <button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>
-          </div>
-
-          <div class="legend">
-            <div>
-              <span class="yellow-dot"></span>
-              Yellow = hydrophobic interaction lines
-            </div>
-
-            <div>
-              <span class="blue-dot"></span>
-              Blue = polar / possible H-bond lines
-            </div>
-
-            <div>
-              <span class="lime-dot"></span>
-              Lime = van der Waals interaction lines
-            </div>
-
-            <div>
-              <span class="orange-dot"></span>
-              Orange = AI hotspot residues
-            </div>
-
-            <div>
-              <span class="red-dot"></span>
-              Red = lost WT contact residues
-            </div>
-
-            <div>
-              <span class="green-dot"></span>
-              Green = gained mutant contact residues
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h2>Analysis Result</h2>
-
-          <div class="ai-dashboard">
-            <div class="ai-dashboard-title">
-              AI Structural Dashboard
-            </div>
-
-            <div class="ai-card">
-              <h3>Pocket Type</h3>
-              <p>
-                AI-inferred pocket classification based on residue composition,
-                ligand contacts, and local interaction pattern.
-              </p>
-            </div>
-
-            <div class="ai-card">
-              <h3>Key Hotspot Residues</h3>
-              <ul id="hotspot-list">
-                <li>Detecting hotspot residues...</li>
-              </ul>
-            </div>
-
-            <div class="ai-card">
-              <h3>AI Structural Interpretation</h3>
-              <p>
-                {{ ai_html | safe }}
-              </p>
-            </div>
-
-            <details>
-              <summary>View full raw report</summary>
-              <div class="raw-report">{{ result_text }}</div>
-            </details>
-          </div>
-
-          {% if report_download_url %}
-            <a href="{{ report_download_url }}" class="download-btn">
-              Download Report
-            </a>
-          {% endif %}
-        </div>
-
+      <!-- Tab navigation -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tab-single">Single Structure Analysis</button>
+        <button class="tab-btn" data-tab="tab-mutation">Mutation Scan</button>
+        <button class="tab-btn" data-tab="tab-compare">WT vs Mutant Comparison</button>
       </div>
 
-      <script id="interaction-data" type="application/json">
-        {{ interaction_data | default([]) | tojson }}
-      </script>
+      <!-- Tab: Single Structure Analysis -->
+      <div class="tab-panel active" id="tab-single">
+        <form action="/analyze" method="post" enctype="multipart/form-data" class="analysis-form">
+          <div class="form-group">
+            <label>PDB File</label>
+            <div class="drop-zone" id="drop-zone-analyze">
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                </div>
+              </div>
+              <div class="file-info">
+                <span class="check">&#x2713;</span>
+                <span class="file-name"></span>
+                <span class="file-size"></span>
+              </div>
+              <input type="file" name="pdb_file" accept=".pdb" required>
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
 
-      <script id="lost-residues" type="application/json">
-        {{ lost_residues | default([]) | tojson }}
-      </script>
+          <div class="form-group">
+            <label for="ligand-analyze">Ligand Name</label>
+            <input type="text" id="ligand-analyze" class="text-input"
+                   name="ligand_name" placeholder="e.g. MK1 / CLR" required>
+            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
+          </div>
 
-      <script id="gained-residues" type="application/json">
-        {{ gained_residues | default([]) | tojson }}
-      </script>
+          <button type="submit" class="btn">
+            <span class="btn-label">Analyze Structure</span>
+          </button>
+        </form>
+      </div>
 
-      <script id="hotspot-residues" type="application/json">
-        {{ hotspot_residues | default([]) | tojson }}
-      </script>
+      <!-- Tab: Mutation Scan -->
+      <div class="tab-panel" id="tab-mutation">
+        <form action="/mutation_scan" method="post" enctype="multipart/form-data" class="analysis-form">
+          <div class="form-group">
+            <label>PDB File</label>
+            <div class="drop-zone" id="drop-zone-mutation">
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                </div>
+              </div>
+              <div class="file-info">
+                <span class="check">&#x2713;</span>
+                <span class="file-name"></span>
+                <span class="file-size"></span>
+              </div>
+              <input type="file" name="mutation_pdb_file" accept=".pdb" required>
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
 
-      <script>
-        const pdbUrl =
-          "{{ pdb_url }}";
+          <div class="form-group">
+            <label for="ligand-mutation">Ligand Name</label>
+            <input type="text" id="ligand-mutation" class="text-input"
+                   name="mutation_ligand_name" placeholder="e.g. MK1 / CLR" required>
+            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
+          </div>
 
-        const ligandName =
-          {{ request.form.get('ligand_name', request.form.get('compare_ligand_name', '')) | tojson }};
+          <div class="form-group">
+            <label for="mutation-text">Mutation</label>
+            <input type="text" id="mutation-text" class="text-input"
+                   name="mutation_text" placeholder="e.g. R273H / K120A / Y220C" required>
+            <div class="helper">Single-letter code: wild-type residue, position, mutant residue.</div>
+          </div>
 
-        const interactions = JSON.parse(
-          document.getElementById("interaction-data").textContent
-        );
+          <div class="form-group">
+            <label for="chain-id">Chain ID (optional)</label>
+            <input type="text" id="chain-id" class="text-input"
+                   name="mutation_chain_id" placeholder="e.g. A">
+            <div class="helper">Specify a chain if your PDB contains multiple chains.</div>
+          </div>
 
-        const lostResidues = JSON.parse(
-          document.getElementById("lost-residues").textContent
-        );
+          <button type="submit" class="btn btn-secondary">
+            <span class="btn-label">Analyze Mutation</span>
+          </button>
+        </form>
+      </div>
 
-        const gainedResidues = JSON.parse(
-          document.getElementById("gained-residues").textContent
-        );
+      <!-- Tab: WT vs Mutant Comparison -->
+      <div class="tab-panel" id="tab-compare">
+        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form">
+          <div class="form-group">
+            <label>WT PDB File</label>
+            <div class="drop-zone" id="drop-zone-wt">
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                </div>
+              </div>
+              <div class="file-info">
+                <span class="check">&#x2713;</span>
+                <span class="file-name"></span>
+                <span class="file-size"></span>
+              </div>
+              <input type="file" name="wt_file" accept=".pdb" required>
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
 
-        const hotspotResidues = JSON.parse(
-          document.getElementById("hotspot-residues").textContent
-        );
+          <div class="form-group">
+            <label>Mutant PDB File</label>
+            <div class="drop-zone" id="drop-zone-mut">
+              <div class="drop-zone-placeholder">
+                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-text">
+                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                </div>
+              </div>
+              <div class="file-info">
+                <span class="check">&#x2713;</span>
+                <span class="file-name"></span>
+                <span class="file-size"></span>
+              </div>
+              <input type="file" name="mut_file" accept=".pdb" required>
+            </div>
+            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
+            <div class="file-error">Only .pdb files are supported.</div>
+          </div>
 
-        const hotspotList = document.getElementById("hotspot-list");
+          <div class="form-group">
+            <label for="ligand-compare">Ligand Name</label>
+            <input type="text" id="ligand-compare" class="text-input"
+                   name="compare_ligand_name" placeholder="e.g. MK1 / CLR" required>
+            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB files.</div>
+          </div>
 
-        let viewer = null;
+          <button type="submit" class="btn btn-secondary">
+            <span class="btn-label">Compare Mutation</span>
+          </button>
+        </form>
+      </div>
+
+      {% if pdb_url %}
+
+        <div class="main-area" id="results-container">
+
+          <div>
+            <h2>3D Structure Viewer</h2>
+
+            <div class="viewer-box">
+              <div id="viewer"></div>
+            </div>
+
+            <div class="viewer-tools">
+              <button class="tool-btn" id="reset-view-btn">Reset View</button>
+              <button class="tool-btn" id="pocket-view-btn">Focus Ligand</button>
+              <button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>
+              <button class="tool-btn" id="surface-toggle-btn">Show Pocket Surface</button>
+            </div>
+
+            <div class="legend">
+              <div><span class="yellow-dot"></span> Yellow = hydrophobic interaction lines</div>
+              <div><span class="blue-dot"></span> Blue = polar / possible H-bond lines</div>
+              <div><span class="lime-dot"></span> Lime = van der Waals interaction lines</div>
+              <div><span class="orange-dot"></span> Orange = AI hotspot residues</div>
+              <div><span class="red-dot"></span> Red = lost WT contact residues</div>
+              <div><span class="green-dot"></span> Green = gained mutant contact residues</div>
+            </div>
+          </div>
+
+          <div>
+            <h2>Analysis Result</h2>
+
+            <div class="ai-dashboard">
+              <div class="ai-dashboard-title">
+                AI Structural Dashboard
+              </div>
+
+              <div class="ai-card">
+                <h3>Pocket Type</h3>
+                <p>
+                  AI-inferred pocket classification based on residue composition,
+                  ligand contacts, and local interaction pattern.
+                </p>
+              </div>
+
+              <div class="ai-card">
+                <h3>Key Hotspot Residues</h3>
+                <ul id="hotspot-list">
+                  <li>Detecting hotspot residues...</li>
+                </ul>
+              </div>
+
+              <div class="ai-card">
+                <h3>AI Structural Interpretation</h3>
+                <p>{{ ai_html | safe }}</p>
+              </div>
+
+              <details>
+                <summary>View full raw report</summary>
+                <div class="raw-report">{{ result_text }}</div>
+              </details>
+            </div>
+
+            <div>
+              {% if report_download_url %}
+                <a href="{{ report_download_url }}" class="download-btn">
+                  Download Report (TXT)
+                </a>
+              {% endif %}
+              {% if json_download_url %}
+                <a href="{{ json_download_url }}" class="download-btn json">
+                  Download Data (JSON)
+                </a>
+              {% endif %}
+              {% if csv_download_url %}
+                <a href="{{ csv_download_url }}" class="download-btn csv">
+                  Download Data (CSV)
+                </a>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+
+        <script id="interaction-data" type="application/json">
+          {{ interaction_data | default([]) | tojson }}
+        </script>
+
+        <script id="lost-residues" type="application/json">
+          {{ lost_residues | default([]) | tojson }}
+        </script>
+
+        <script id="gained-residues" type="application/json">
+          {{ gained_residues | default([]) | tojson }}
+        </script>
+
+        <script id="hotspot-residues" type="application/json">
+          {{ hotspot_residues | default([]) | tojson }}
+        </script>
+
+        <script>
+          const pdbUrl = "{{ pdb_url }}";
+
+          const ligandName = {{ request.form.get('ligand_name', request.form.get('compare_ligand_name', '')) | tojson }};
+
+          const interactions = JSON.parse(
+            document.getElementById("interaction-data").textContent
+          );
+
+          const lostResidues = JSON.parse(
+            document.getElementById("lost-residues").textContent
+          );
+
+          const gainedResidues = JSON.parse(
+            document.getElementById("gained-residues").textContent
+          );
+
+          const hotspotResidues = JSON.parse(
+            document.getElementById("hotspot-residues").textContent
+          );
+
+          const hotspotList = document.getElementById("hotspot-list");
+
+          let viewer = null;
+          let surfaceOn = false;
+          const pocketResidueSelections = new Set();
+
+          function interactionColor(interaction) {
+            return interaction.color || "yellow";
+          }
+
+          function applyBaseStyle() {
+            viewer.setStyle({}, { cartoon: { color: "spectrum" } });
+
+            viewer.setStyle(
+              { resn: ligandName },
+              { stick: { color: "red", radius: 0.25 } }
+            );
+
+            viewer.addStyle(
+              { within: { distance: 5, sel: { resn: ligandName } } },
+              { stick: { color: "yellow", radius: 0.18 } }
+            );
+
+            interactions.forEach(function(interaction) {
+              pocketResidueSelections.add(
+                interaction.chain_id + ":" + interaction.res_id
+              );
+            });
+          }
+
+          function drawInteractionLines() {
+            interactions.forEach(function(interaction) {
+              viewer.addCylinder({
+                start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
+                end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
+                radius: 0.08,
+                color: interactionColor(interaction),
+                dashed: true
+              });
+            });
+          }
+
+          function drawDistanceLabels() {
+            var top5 = hotspotResidues.slice(0, 5);
+            var shown = 0;
+            interactions.forEach(function(interaction) {
+              if (shown >= 5) return;
+              var isTop = top5.some(function(r) {
+                return r.chain_id === interaction.chain_id &&
+                       String(r.res_id) === String(interaction.res_id);
+              });
+              if (!isTop) return;
+              shown++;
+
+              var mx = (interaction.start[0] + interaction.end[0]) / 2;
+              var my = (interaction.start[1] + interaction.end[1]) / 2;
+              var mz = (interaction.start[2] + interaction.end[2]) / 2;
+
+              viewer.addLabel(
+                interaction.distance.toFixed(1) + " Å",
+                {
+                  position: { x: mx, y: my, z: mz },
+                  fontColor: interactionColor(interaction),
+                  fontSize: 10,
+                  showBackground: false
+                }
+              );
+            });
+          }
+
+          function drawHotspots() {
+            hotspotResidues.forEach(function(residue) {
+              viewer.setStyle(
+                { chain: residue.chain_id, resi: residue.res_id },
+                {
+                  stick: { color: "orange", radius: 0.45 },
+                  sphere: { color: "orange", radius: 0.75 }
+                }
+              );
+
+              viewer.addResLabels(
+                { chain: residue.chain_id, resi: residue.res_id },
+                {
+                  fontColor: "black",
+                  backgroundColor: "orange",
+                  fontSize: 12,
+                  showBackground: true
+                }
+              );
+            });
+          }
+
+          function drawMutationHighlights() {
+            lostResidues.forEach(function(residue) {
+              viewer.setStyle(
+                { chain: residue.chain_id, resi: residue.res_id },
+                { stick: { color: "red", radius: 0.35 } }
+              );
+            });
+
+            gainedResidues.forEach(function(residue) {
+              viewer.setStyle(
+                { chain: residue.chain_id, resi: residue.res_id },
+                { stick: { color: "green", radius: 0.35 } }
+              );
+            });
+          }
+
+          function showPocketSurface() {
+            pocketResidueSelections.forEach(function(key) {
+              var parts = key.split(":");
+              viewer.addSurface(
+                $3Dmol.SurfaceType.VDW,
+                { opacity: 0.4, color: "yellow" },
+                { chain: parts[0], resi: parts[1] }
+              );
+            });
+          }
+
+          function redrawFullView() {
+            viewer.removeAllShapes();
+            viewer.removeAllLabels();
+            viewer.removeAllSurfaces();
+
+            applyBaseStyle();
+            drawInteractionLines();
+            drawDistanceLabels();
+            drawHotspots();
+            drawMutationHighlights();
+
+            if (surfaceOn) {
+              showPocketSurface();
+            }
+
+            viewer.zoomTo({ resn: ligandName });
+            viewer.render();
+            viewer.resize();
+
+            var surfaceBtn = document.getElementById("surface-toggle-btn");
+            if (surfaceBtn) {
+              surfaceBtn.textContent = surfaceOn ? "Hide Pocket Surface" : "Show Pocket Surface";
+              if (surfaceOn) {
+                surfaceBtn.classList.add("active");
+              } else {
+                surfaceBtn.classList.remove("active");
+              }
+            }
+          }
+
+          function focusResidue(residue) {
+            viewer.removeAllShapes();
+            viewer.removeAllLabels();
+            viewer.removeAllSurfaces();
+
+            viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.32 } });
+
+            viewer.setStyle(
+              { resn: ligandName },
+              { stick: { color: "yellow", radius: 0.3 } }
+            );
+
+            viewer.setStyle(
+              { chain: residue.chain_id, resi: residue.res_id },
+              {
+                stick: { color: "orange", radius: 0.55 },
+                sphere: { color: "orange", radius: 1.0 }
+              }
+            );
+
+            viewer.addResLabels(
+              { chain: residue.chain_id, resi: residue.res_id },
+              {
+                fontColor: "black",
+                backgroundColor: "orange",
+                fontSize: 14,
+                showBackground: true
+              }
+            );
+
+            interactions
+              .filter(function(interaction) {
+                return interaction.res_name === residue.res_name &&
+                       interaction.res_id === residue.res_id &&
+                       interaction.chain_id === residue.chain_id;
+              })
+              .forEach(function(interaction) {
+                viewer.addCylinder({
+                  start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
+                  end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
+                  radius: 0.13,
+                  color: interactionColor(interaction),
+                  dashed: true
+                });
+
+                var mx = (interaction.start[0] + interaction.end[0]) / 2;
+                var my = (interaction.start[1] + interaction.end[1]) / 2;
+                var mz = (interaction.start[2] + interaction.end[2]) / 2;
+                viewer.addLabel(
+                  interaction.distance.toFixed(1) + " Å",
+                  {
+                    position: { x: mx, y: my, z: mz },
+                    fontColor: interactionColor(interaction),
+                    fontSize: 11,
+                    showBackground: false
+                  }
+                );
+              });
+
+            viewer.zoomTo({ chain: residue.chain_id, resi: residue.res_id });
+            viewer.render();
+          }
+
+          function focusHotspots() {
+            viewer.removeAllShapes();
+            viewer.removeAllLabels();
+            viewer.removeAllSurfaces();
+
+            viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.25 } });
+
+            viewer.setStyle(
+              { resn: ligandName },
+              { stick: { color: "yellow", radius: 0.3 } }
+            );
+
+            drawHotspots();
+            drawInteractionLines();
+            drawDistanceLabels();
+
+            if (hotspotResidues.length > 0) {
+              var selections = hotspotResidues.map(function(residue) {
+                return { chain: residue.chain_id, resi: residue.res_id };
+              });
+              viewer.zoomTo(selections);
+            } else {
+              viewer.zoomTo({ resn: ligandName });
+            }
+
+            viewer.render();
+          }
+
+          if (hotspotList) {
+            hotspotList.innerHTML = "";
+
+            if (hotspotResidues.length === 0) {
+              hotspotList.innerHTML = "<li>No hotspot residues detected.</li>";
+            } else {
+              hotspotResidues.forEach(function(residue, index) {
+                var li = document.createElement("li");
+
+                var btn = document.createElement("button");
+                btn.className = "hotspot-btn";
+                btn.innerHTML =
+                  '<span class="hotspot-rank">#' + (index + 1) + '</span>' +
+                  residue.res_name + residue.res_id + ' chain ' + residue.chain_id + ' · ' +
+                  residue.distance + ' Å · ' + (residue.interaction_type || "contact");
+
+                btn.onclick = (function(r) {
+                  return function() { focusResidue(r); };
+                })(residue);
+
+                li.appendChild(btn);
+                hotspotList.appendChild(li);
+              });
+            }
+          }
+
+          fetch(pdbUrl)
+            .then(function(response) { return response.text(); })
+            .then(function(pdbData) {
+              viewer = $3Dmol.createViewer("viewer", {
+                backgroundColor: "white"
+              });
+
+              viewer.addModel(pdbData, "pdb");
+
+              redrawFullView();
+
+              document.getElementById("reset-view-btn").onclick = function() {
+                redrawFullView();
+              };
+
+              document.getElementById("pocket-view-btn").onclick = function() {
+                viewer.zoomTo({ resn: ligandName });
+                viewer.render();
+              };
+
+              document.getElementById("hotspot-view-btn").onclick = function() {
+                focusHotspots();
+              };
+
+              document.getElementById("surface-toggle-btn").onclick = function() {
+                surfaceOn = !surfaceOn;
+                redrawFullView();
+              };
+            });
+        </script>
+
+      {% endif %}
+
+      {% if result_text and not pdb_url and not comparison_text %}
+        <div class="error-box">{{ result_text }}</div>
+      {% endif %}
+
+      {% if mutation_scan_result %}
+        <h2>Mutation Analysis Result</h2>
+
+        <div class="ai-dashboard" style="max-height: none;">
+          <div class="ai-dashboard-title">
+            Mutation Impact Summary
+          </div>
+
+          <div class="ai-card">
+            <h3>Mutation Overview</h3>
+            <p>
+              {{ mutation_scan_result.mutation }}
+              chain {{ mutation_scan_result.chain_id }}:
+              {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
+              &rarr;
+              {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
+            </p>
+            {% if mutation_scan_result.selection_note %}
+              <p>{{ mutation_scan_result.selection_note }}</p>
+            {% endif %}
+          </div>
+
+          <div class="ai-card">
+            <h3>Property Changes</h3>
+            <ul>
+              {% for name, value in mutation_scan_result.property_changes.items() %}
+                <li>{{ name }}: {{ value }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="ai-card">
+            <h3>Interaction Impact</h3>
+            <p>Possible loss:</p>
+            <ul>
+              {% for item in mutation_scan_result.interaction_impact.possible_loss %}
+                <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+              {% else %}
+                <li>None predicted by current rules.</li>
+              {% endfor %}
+            </ul>
+
+            <p>Possible gain:</p>
+            <ul>
+              {% for item in mutation_scan_result.interaction_impact.possible_gain %}
+                <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+              {% else %}
+                <li>None predicted by current rules.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="ai-card">
+            <h3>AI-style Mutation Interpretation</h3>
+            <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
+          </div>
+
+          <details>
+            <summary>View full mutation report</summary>
+            <div class="raw-report">{{ mutation_scan_text }}</div>
+          </details>
+        </div>
+      {% endif %}
+
+      {% if comparison_text %}
+        <h2>Mutation Comparison Result</h2>
+        <pre class="comparison-box">{{ comparison_text }}</pre>
+      {% endif %}
+
+      {% if not pdb_url and not comparison_text and not mutation_scan_result %}
+        <div class="placeholder">
+          Select an analysis mode above, upload your PDB file(s), and enter a ligand name to begin.
+        </div>
+      {% endif %}
+
+    </div><!-- /.content -->
+  </div><!-- /.container -->
+
+  <!-- Tab switching -->
+  <script>
+    (function() {
+      var tabBtns = document.querySelectorAll(".tab-btn");
+      var tabPanels = document.querySelectorAll(".tab-panel");
+
+      tabBtns.forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          var targetId = btn.getAttribute("data-tab");
+
+          tabBtns.forEach(function(b) { b.classList.remove("active"); });
+          tabPanels.forEach(function(p) { p.classList.remove("active"); });
+
+          btn.classList.add("active");
+          document.getElementById(targetId).classList.add("active");
+        });
+      });
+    })();
+  </script>
+
+  <!-- Drag-and-drop file upload -->
+  <script>
+    (function() {
+      function formatSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      }
+
+      function setupDropZone(zone) {
+        var input = zone.querySelector('input[type="file"]');
+        var fileName = zone.querySelector(".file-name");
+        var fileSize = zone.querySelector(".file-size");
+        var warning = zone.querySelector(".file-size-warning");
+        var error = zone.querySelector(".file-error");
+
+        function handleFile(file) {
+          zone.classList.remove("has-error", "drag-over");
+          warning.style.display = "none";
+          error.style.display = "none";
+
+          if (!file) return;
+
+          if (!file.name.toLowerCase().endsWith(".pdb")) {
+            zone.classList.add("has-error");
+            zone.classList.remove("has-file");
+            error.style.display = "block";
+            return;
+          }
+
+          zone.classList.add("has-file");
+          fileName.textContent = file.name;
+          fileSize.textContent = "(" + formatSize(file.size) + ")";
+
+          if (file.size > 10 * 1024 * 1024) {
+            warning.style.display = "block";
+          }
+        }
+
+        input.addEventListener("change", function() {
+          handleFile(input.files[0]);
+        });
+
+        zone.addEventListener("dragover", function(e) {
+          e.preventDefault();
+          zone.classList.add("drag-over");
+        });
+
+        zone.addEventListener("dragleave", function() {
+          zone.classList.remove("drag-over");
+        });
+
+        zone.addEventListener("drop", function(e) {
+          e.preventDefault();
+          zone.classList.remove("drag-over");
+
+          var files = e.dataTransfer.files;
+          if (files.length > 0) {
+            var dt = new DataTransfer();
+            dt.items.add(files[0]);
+            input.files = dt.files;
+            handleFile(files[0]);
+          }
+        });
+      }
+
+      document.querySelectorAll(".drop-zone").forEach(function(zone) {
+        setupDropZone(zone);
+      });
+    })();
+  </script>
+
+  <!-- AJAX analyze + progress panel -->
+  <script>
+    (function() {
+      var progressOverlay = document.getElementById("progress-overlay");
+      var progressTitle = document.getElementById("progress-title");
+      var progressBarFill = document.getElementById("progress-bar-fill");
+      var progressDone = document.getElementById("progress-done-message");
+      var progressError = document.getElementById("progress-error-message");
+      var resultsContainer = document.getElementById("results-container");
+      var stagesEl = document.getElementById("progress-stages");
+
+      var stageEls = stagesEl ? stagesEl.querySelectorAll(".progress-stage") : [];
+      var totalStages = stageEls.length;
+      var currentStage = 0;
+      var fetchComplete = false;
+      var responseData = null;
+      var stageTimers = [];
+
+      function setStage(index, state) {
+        if (index >= totalStages) return;
+        var el = stageEls[index];
+        el.className = "progress-stage " + state;
+      }
+
+      function advanceStage() {
+        if (currentStage >= totalStages) return;
+
+        setStage(currentStage, "done");
+
+        if (currentStage > 0) {
+          setStage(currentStage - 1, "done");
+        }
+
+        currentStage++;
+
+        if (currentStage < totalStages) {
+          setStage(currentStage, "active");
+          var pct = Math.round((currentStage / totalStages) * 100);
+          progressBarFill.style.width = pct + "%";
+
+          var delay = 900 + Math.random() * 500;
+          stageTimers.push(setTimeout(advanceStage, delay));
+        }
+      }
+
+      function clearStageTimers() {
+        stageTimers.forEach(function(t) { clearTimeout(t); });
+        stageTimers = [];
+      }
+
+      function completeAllStages() {
+        clearStageTimers();
+        for (var i = 0; i < totalStages; i++) {
+          setStage(i, "done");
+        }
+        progressBarFill.style.width = "100%";
+        progressDone.classList.add("show");
+        progressTitle.textContent = "Analysis Complete";
+      }
+
+      function showError(msg) {
+        clearStageTimers();
+        progressBarFill.style.width = "100%";
+        progressBarFill.style.background = "#ef4444";
+        progressTitle.textContent = "Analysis Failed";
+        progressError.textContent = msg;
+        progressError.classList.add("show");
+        progressDone.classList.remove("show");
+
+        for (var i = 0; i < totalStages; i++) {
+          setStage(i, "done");
+        }
+
+        setTimeout(function() {
+          progressOverlay.classList.remove("active");
+          setTimeout(function() {
+            progressError.classList.remove("show");
+            progressBarFill.style.background = "";
+            progressBarFill.style.width = "0%";
+            for (var j = 0; j < totalStages; j++) {
+              setStage(j, "pending");
+            }
+            progressDone.classList.remove("show");
+            progressTitle.textContent = "Analyzing Structure";
+          }, 400);
+        }, 2500);
+      }
+
+      function buildResultHTML(data) {
+        function esc(s) {
+          if (!s) return "";
+          return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        var downloadLinks = "";
+        if (data.report_download_url) {
+          downloadLinks += '<a href="' + data.report_download_url + '" class="download-btn">Download Report (TXT)</a>';
+        }
+        if (data.json_download_url) {
+          downloadLinks += '<a href="' + data.json_download_url + '" class="download-btn json">Download Data (JSON)</a>';
+        }
+        if (data.csv_download_url) {
+          downloadLinks += '<a href="' + data.csv_download_url + '" class="download-btn csv">Download Data (CSV)</a>';
+        }
+
+        var html = '<div class="main-area results-container fade-in">' +
+          '<div>' +
+            '<h2>3D Structure Viewer</h2>' +
+            '<div class="viewer-box"><div id="viewer"></div></div>' +
+            '<div class="viewer-tools">' +
+              '<button class="tool-btn" id="reset-view-btn">Reset View</button>' +
+              '<button class="tool-btn" id="pocket-view-btn">Focus Ligand</button>' +
+              '<button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>' +
+              '<button class="tool-btn" id="surface-toggle-btn">Show Pocket Surface</button>' +
+            '</div>' +
+            '<div class="legend">' +
+              '<div><span class="yellow-dot"></span> Yellow = hydrophobic interaction lines</div>' +
+              '<div><span class="blue-dot"></span> Blue = polar / possible H-bond lines</div>' +
+              '<div><span class="lime-dot"></span> Lime = van der Waals interaction lines</div>' +
+              '<div><span class="orange-dot"></span> Orange = AI hotspot residues</div>' +
+              '<div><span class="red-dot"></span> Red = lost WT contact residues</div>' +
+              '<div><span class="green-dot"></span> Green = gained mutant contact residues</div>' +
+            '</div>' +
+          '</div>' +
+          '<div>' +
+            '<h2>Analysis Result</h2>' +
+            '<div class="ai-dashboard">' +
+              '<div class="ai-dashboard-title">AI Structural Dashboard</div>' +
+              '<div class="ai-card">' +
+                '<h3>Pocket Type</h3>' +
+                '<p>AI-inferred pocket classification based on residue composition, ligand contacts, and local interaction pattern.</p>' +
+              '</div>' +
+              '<div class="ai-card">' +
+                '<h3>Key Hotspot Residues</h3>' +
+                '<ul id="hotspot-list"><li>Detecting hotspot residues...</li></ul>' +
+              '</div>' +
+              '<div class="ai-card">' +
+                '<h3>AI Structural Interpretation</h3>' +
+                '<p>' + (data.ai_html || "") + '</p>' +
+              '</div>' +
+              '<details>' +
+                '<summary>View full raw report</summary>' +
+                '<div class="raw-report">' + esc(data.result_text) + '</div>' +
+              '</details>' +
+            '</div>' +
+            '<div>' + downloadLinks + '</div>' +
+          '</div>' +
+        '</div>';
+
+        return html;
+      }
+
+      function renderResults(data) {
+        if (!resultsContainer) {
+          resultsContainer = document.getElementById("results-container");
+        }
+
+        var container = resultsContainer || document.querySelector(".content");
+        if (!container) return;
+
+        var existing = container.querySelector(".main-area");
+        if (existing) existing.remove();
+
+        container.insertAdjacentHTML("beforeend", buildResultHTML(data));
+
+        var errorBox = container.querySelector(".error-box");
+        if (errorBox) errorBox.remove();
+
+        var placeholder = container.querySelector(".placeholder");
+        if (placeholder) placeholder.style.display = "none";
+      }
+
+      function initViewerFromData(data) {
+        if (!data.pdb_url) return;
+
+        var viewerEl = document.getElementById("viewer");
+        if (!viewerEl) return;
+
+        window._analysisData = data;
+
+        var scriptEl = document.getElementById("interaction-data");
+        if (!scriptEl) {
+          scriptEl = document.createElement("script");
+          scriptEl.id = "interaction-data";
+          scriptEl.type = "application/json";
+          document.body.appendChild(scriptEl);
+        }
+        scriptEl.textContent = JSON.stringify(data.interaction_data || []);
+
+        var hotspotEl = document.getElementById("hotspot-residues");
+        if (!hotspotEl) {
+          hotspotEl = document.createElement("script");
+          hotspotEl.id = "hotspot-residues";
+          hotspotEl.type = "application/json";
+          document.body.appendChild(hotspotEl);
+        }
+        hotspotEl.textContent = JSON.stringify(data.hotspot_residues || []);
+
+        var lostEl = document.getElementById("lost-residues");
+        if (!lostEl) {
+          lostEl = document.createElement("script");
+          lostEl.id = "lost-residues";
+          lostEl.type = "application/json";
+          document.body.appendChild(lostEl);
+        }
+        lostEl.textContent = JSON.stringify(data.lost_residues || []);
+
+        var gainedEl = document.getElementById("gained-residues");
+        if (!gainedEl) {
+          gainedEl = document.createElement("script");
+          gainedEl.id = "gained-residues";
+          gainedEl.type = "application/json";
+          document.body.appendChild(gainedEl);
+        }
+        gainedEl.textContent = JSON.stringify(data.gained_residues || []);
+
+        var interactions = data.interaction_data || [];
+        var hotspotResidues = data.hotspot_residues || [];
+        var lostResidues = data.lost_residues || [];
+        var gainedResidues = data.gained_residues || [];
+
+        var ligandName = "";
+        try {
+          var formData = new FormData(document.querySelector("#tab-single form"));
+          ligandName = (formData.get("ligand_name") || "").toUpperCase();
+        } catch(e) {}
+
+        var hotspotList = document.getElementById("hotspot-list");
+        var viewer = null;
+        var surfaceOn = false;
+        var pocketResidueSelections = new Set();
 
         function interactionColor(interaction) {
           return interaction.color || "yellow";
         }
 
         function applyBaseStyle() {
-          viewer.setStyle({}, {
-            cartoon: { color: "spectrum" }
-          });
-
-          viewer.setStyle(
-            { resn: ligandName },
-            {
-              stick: {
-                color: "red",
-                radius: 0.25
-              }
-            }
-          );
-
+          viewer.setStyle({}, { cartoon: { color: "spectrum" } });
+          viewer.setStyle({ resn: ligandName }, { stick: { color: "red", radius: 0.25 } });
           viewer.addStyle(
-            {
-              within: {
-                distance: 5,
-                sel: { resn: ligandName }
-              }
-            },
-            {
-              stick: {
-                color: "yellow",
-                radius: 0.18
-              }
-            }
+            { within: { distance: 5, sel: { resn: ligandName } } },
+            { stick: { color: "yellow", radius: 0.18 } }
           );
+          interactions.forEach(function(interaction) {
+            pocketResidueSelections.add(interaction.chain_id + ":" + interaction.res_id);
+          });
         }
 
         function drawInteractionLines() {
-          interactions.forEach(interaction => {
+          interactions.forEach(function(interaction) {
             viewer.addCylinder({
-              start: {
-                x: interaction.start[0],
-                y: interaction.start[1],
-                z: interaction.start[2]
-              },
+              start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
+              end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
+              radius: 0.08, color: interactionColor(interaction), dashed: true
+            });
+          });
+        }
 
-              end: {
-                x: interaction.end[0],
-                y: interaction.end[1],
-                z: interaction.end[2]
-              },
-
-              radius: 0.08,
-              color: interactionColor(interaction),
-              dashed: true
+        function drawDistanceLabels() {
+          var top5 = hotspotResidues.slice(0, 5);
+          var shown = 0;
+          interactions.forEach(function(interaction) {
+            if (shown >= 5) return;
+            var isTop = top5.some(function(r) {
+              return r.chain_id === interaction.chain_id && String(r.res_id) === String(interaction.res_id);
+            });
+            if (!isTop) return;
+            shown++;
+            var mx = (interaction.start[0] + interaction.end[0]) / 2;
+            var my = (interaction.start[1] + interaction.end[1]) / 2;
+            var mz = (interaction.start[2] + interaction.end[2]) / 2;
+            viewer.addLabel(interaction.distance.toFixed(1) + " Å", {
+              position: { x: mx, y: my, z: mz },
+              fontColor: interactionColor(interaction), fontSize: 10, showBackground: false
             });
           });
         }
 
         function drawHotspots() {
-          hotspotResidues.forEach(residue => {
+          hotspotResidues.forEach(function(residue) {
             viewer.setStyle(
-              {
-                chain: residue.chain_id,
-                resi: residue.res_id
-              },
-              {
-                stick: {
-                  color: "orange",
-                  radius: 0.45
-                },
-                sphere: {
-                  color: "orange",
-                  radius: 0.75
-                }
-              }
+              { chain: residue.chain_id, resi: residue.res_id },
+              { stick: { color: "orange", radius: 0.45 }, sphere: { color: "orange", radius: 0.75 } }
             );
-
             viewer.addResLabels(
-              {
-                chain: residue.chain_id,
-                resi: residue.res_id
-              },
-              {
-                fontColor: "black",
-                backgroundColor: "orange",
-                fontSize: 12,
-                showBackground: true
-              }
+              { chain: residue.chain_id, resi: residue.res_id },
+              { fontColor: "black", backgroundColor: "orange", fontSize: 12, showBackground: true }
             );
           });
         }
 
         function drawMutationHighlights() {
-          lostResidues.forEach(residue => {
+          lostResidues.forEach(function(residue) {
             viewer.setStyle(
-              {
-                chain: residue.chain_id,
-                resi: residue.res_id
-              },
-              {
-                stick: {
-                  color: "red",
-                  radius: 0.35
-                }
-              }
+              { chain: residue.chain_id, resi: residue.res_id },
+              { stick: { color: "red", radius: 0.35 } }
             );
           });
-
-          gainedResidues.forEach(residue => {
+          gainedResidues.forEach(function(residue) {
             viewer.setStyle(
-              {
-                chain: residue.chain_id,
-                resi: residue.res_id
-              },
-              {
-                stick: {
-                  color: "green",
-                  radius: 0.35
-                }
-              }
+              { chain: residue.chain_id, resi: residue.res_id },
+              { stick: { color: "green", radius: 0.35 } }
             );
+          });
+        }
+
+        function showPocketSurface() {
+          pocketResidueSelections.forEach(function(key) {
+            var parts = key.split(":");
+            viewer.addSurface($3Dmol.SurfaceType.VDW, { opacity: 0.4, color: "yellow" }, { chain: parts[0], resi: parts[1] });
           });
         }
 
         function redrawFullView() {
           viewer.removeAllShapes();
           viewer.removeAllLabels();
-
+          viewer.removeAllSurfaces();
           applyBaseStyle();
           drawInteractionLines();
+          drawDistanceLabels();
           drawHotspots();
           drawMutationHighlights();
-
+          if (surfaceOn) showPocketSurface();
           viewer.zoomTo({ resn: ligandName });
           viewer.render();
           viewer.resize();
+          var surfaceBtn = document.getElementById("surface-toggle-btn");
+          if (surfaceBtn) {
+            surfaceBtn.textContent = surfaceOn ? "Hide Pocket Surface" : "Show Pocket Surface";
+            if (surfaceOn) surfaceBtn.classList.add("active");
+            else surfaceBtn.classList.remove("active");
+          }
         }
 
         function focusResidue(residue) {
           viewer.removeAllShapes();
           viewer.removeAllLabels();
-
-          viewer.setStyle({}, {
-            cartoon: {
-              color: "lightgrey",
-              opacity: 0.32
-            }
-          });
-
+          viewer.removeAllSurfaces();
+          viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.32 } });
+          viewer.setStyle({ resn: ligandName }, { stick: { color: "yellow", radius: 0.3 } });
           viewer.setStyle(
-            { resn: ligandName },
-            {
-              stick: {
-                color: "yellow",
-                radius: 0.3
-              }
-            }
+            { chain: residue.chain_id, resi: residue.res_id },
+            { stick: { color: "orange", radius: 0.55 }, sphere: { color: "orange", radius: 1.0 } }
           );
-
-          viewer.setStyle(
-            {
-              chain: residue.chain_id,
-              resi: residue.res_id
-            },
-            {
-              stick: {
-                color: "orange",
-                radius: 0.55
-              },
-              sphere: {
-                color: "orange",
-                radius: 1.0
-              }
-            }
-          );
-
           viewer.addResLabels(
-            {
-              chain: residue.chain_id,
-              resi: residue.res_id
-            },
-            {
-              fontColor: "black",
-              backgroundColor: "orange",
-              fontSize: 14,
-              showBackground: true
-            }
+            { chain: residue.chain_id, resi: residue.res_id },
+            { fontColor: "black", backgroundColor: "orange", fontSize: 14, showBackground: true }
           );
-
-          interactions
-            .filter(interaction => {
-              return interaction.res_name === residue.res_name &&
-                     interaction.res_id === residue.res_id &&
-                     interaction.chain_id === residue.chain_id;
-            })
-            .forEach(interaction => {
-              viewer.addCylinder({
-                start: {
-                  x: interaction.start[0],
-                  y: interaction.start[1],
-                  z: interaction.start[2]
-                },
-                end: {
-                  x: interaction.end[0],
-                  y: interaction.end[1],
-                  z: interaction.end[2]
-                },
-                radius: 0.13,
-                color: interactionColor(interaction),
-                dashed: true
-              });
+          interactions.filter(function(interaction) {
+            return interaction.res_name === residue.res_name &&
+                   interaction.res_id === residue.res_id &&
+                   interaction.chain_id === residue.chain_id;
+          }).forEach(function(interaction) {
+            viewer.addCylinder({
+              start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
+              end: { x: interaction.end[0], y: interaction.end[1], z: interaction.end[2] },
+              radius: 0.13, color: interactionColor(interaction), dashed: true
             });
-
-          viewer.zoomTo({
-            chain: residue.chain_id,
-            resi: residue.res_id
+            var mx = (interaction.start[0] + interaction.end[0]) / 2;
+            var my = (interaction.start[1] + interaction.end[1]) / 2;
+            var mz = (interaction.start[2] + interaction.end[2]) / 2;
+            viewer.addLabel(interaction.distance.toFixed(1) + " Å", {
+              position: { x: mx, y: my, z: mz },
+              fontColor: interactionColor(interaction), fontSize: 11, showBackground: false
+            });
           });
-
+          viewer.zoomTo({ chain: residue.chain_id, resi: residue.res_id });
           viewer.render();
         }
 
         function focusHotspots() {
           viewer.removeAllShapes();
           viewer.removeAllLabels();
-
-          viewer.setStyle({}, {
-            cartoon: {
-              color: "lightgrey",
-              opacity: 0.25
-            }
-          });
-
-          viewer.setStyle(
-            { resn: ligandName },
-            {
-              stick: {
-                color: "yellow",
-                radius: 0.3
-              }
-            }
-          );
-
+          viewer.removeAllSurfaces();
+          viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.25 } });
+          viewer.setStyle({ resn: ligandName }, { stick: { color: "yellow", radius: 0.3 } });
           drawHotspots();
           drawInteractionLines();
-
+          drawDistanceLabels();
           if (hotspotResidues.length > 0) {
-            const selections = hotspotResidues.map(residue => {
-              return {
-                chain: residue.chain_id,
-                resi: residue.res_id
-              };
-            });
-
-            viewer.zoomTo(selections);
+            viewer.zoomTo(hotspotResidues.map(function(r) { return { chain: r.chain_id, resi: r.res_id }; }));
           } else {
             viewer.zoomTo({ resn: ligandName });
           }
-
           viewer.render();
         }
 
         if (hotspotList) {
           hotspotList.innerHTML = "";
-
           if (hotspotResidues.length === 0) {
             hotspotList.innerHTML = "<li>No hotspot residues detected.</li>";
           } else {
-            hotspotResidues.forEach((residue, index) => {
-              const li = document.createElement("li");
-
-              const btn = document.createElement("button");
+            hotspotResidues.forEach(function(residue, index) {
+              var li = document.createElement("li");
+              var btn = document.createElement("button");
               btn.className = "hotspot-btn";
-              btn.innerHTML =
-                `<span class="hotspot-rank">#${index + 1}</span>` +
-                `${residue.res_name}${residue.res_id} chain ${residue.chain_id} · ` +
-                `${residue.distance} Å · ${residue.interaction_type || "contact"}`;
-
-              btn.onclick = () => {
-                focusResidue(residue);
-              };
-
+              btn.innerHTML = '<span class="hotspot-rank">#' + (index + 1) + '</span>' +
+                residue.res_name + residue.res_id + ' chain ' + residue.chain_id + ' · ' +
+                residue.distance + ' Å · ' + (residue.interaction_type || "contact");
+              btn.onclick = (function(r) { return function() { focusResidue(r); }; })(residue);
               li.appendChild(btn);
               hotspotList.appendChild(li);
             });
           }
         }
 
-        fetch(pdbUrl)
-          .then(response => response.text())
-          .then(pdbData => {
-
-            viewer = $3Dmol.createViewer("viewer", {
-              backgroundColor: "white"
-            });
-
+        fetch(data.pdb_url)
+          .then(function(response) { return response.text(); })
+          .then(function(pdbData) {
+            viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
             viewer.addModel(pdbData, "pdb");
-
             redrawFullView();
 
-            const resetBtn = document.getElementById("reset-view-btn");
-            const pocketBtn = document.getElementById("pocket-view-btn");
-            const hotspotBtn = document.getElementById("hotspot-view-btn");
-
-            if (resetBtn) {
-              resetBtn.onclick = () => {
-                redrawFullView();
-              };
-            }
-
-            if (pocketBtn) {
-              pocketBtn.onclick = () => {
-                viewer.zoomTo({ resn: ligandName });
-                viewer.render();
-              };
-            }
-
-            if (hotspotBtn) {
-              hotspotBtn.onclick = () => {
-                focusHotspots();
-              };
-            }
+            document.getElementById("reset-view-btn").onclick = function() { redrawFullView(); };
+            document.getElementById("pocket-view-btn").onclick = function() {
+              viewer.zoomTo({ resn: ligandName }); viewer.render();
+            };
+            document.getElementById("hotspot-view-btn").onclick = function() { focusHotspots(); };
+            document.getElementById("surface-toggle-btn").onclick = function() {
+              surfaceOn = !surfaceOn; redrawFullView();
+            };
           });
-      </script>
+      }
 
-    {% endif %}
+      function handleResponse(data) {
+        fetchComplete = true;
 
-    {% if result_text and not pdb_url and not comparison_text %}
+        if (!data.success) {
+          showError(data.error_text || "Unknown error");
+          return;
+        }
 
-      <div class="error-box">{{ result_text }}</div>
+        responseData = data;
+        completeAllStages();
 
-    {% endif %}
+        setTimeout(function() {
+          progressOverlay.classList.remove("active");
+          renderResults(data);
+          setTimeout(function() {
+            initViewerFromData(data);
+          }, 150);
+        }, 800);
+      }
 
-    <div class="section-divider"></div>
+      function handleFetchError(err) {
+        fetchComplete = true;
+        showError("Network error: " + (err.message || "Could not reach server"));
+      }
 
-    <h2>Mutation Scan</h2>
+      // Intercept Single Analysis form submit
+      var singleForm = document.querySelector("#tab-single form.analysis-form");
+      if (singleForm) {
+        singleForm.addEventListener("submit", function(e) {
+          e.preventDefault();
 
-    <form action="/mutation_scan" method="post" enctype="multipart/form-data">
+          var btn = singleForm.querySelector("button[type=submit]");
+          if (btn) {
+            btn.disabled = true;
+            var label = btn.querySelector(".btn-label");
+            if (label) label.textContent = "Analyzing...";
+          }
 
-      <p>PDB 文件：</p>
-      <input type="file" name="mutation_pdb_file" required>
+          // Reset progress state
+          currentStage = 0;
+          fetchComplete = false;
+          responseData = null;
+          clearStageTimers();
+          progressBarFill.style.background = "";
+          progressBarFill.style.width = "0%";
+          progressDone.classList.remove("show");
+          progressError.classList.remove("show");
+          progressTitle.textContent = "Analyzing Structure";
 
-      <p>Ligand 名称：</p>
-      <input type="text"
-             name="mutation_ligand_name"
-             placeholder="例如：MK1 / CLR"
-             required>
+          for (var i = 0; i < totalStages; i++) {
+            setStage(i, "pending");
+          }
 
-      <p>Mutation：</p>
-      <input type="text"
-             name="mutation_text"
-             placeholder="例如：R273H / K120A / Y220C"
-             required>
+          progressOverlay.classList.add("active");
+          setStage(0, "active");
+          advanceStage();
 
-      <p>Chain ID（可选）：</p>
-      <input type="text"
-             name="mutation_chain_id"
-             placeholder="例如：A">
+          var formData = new FormData(singleForm);
 
-      <br>
+          fetch("/analyze_async", {
+            method: "POST",
+            body: formData
+          })
+            .then(function(resp) { return resp.json(); })
+            .then(handleResponse)
+            .catch(handleFetchError)
+            .finally(function() {
+              if (btn) {
+                btn.disabled = false;
+                var label = btn.querySelector(".btn-label");
+                if (label) label.textContent = "Analyze Structure";
+              }
+            });
+        });
+      }
 
-      <button type="submit" class="compare-btn">
-        Analyze Mutation
-      </button>
-
-    </form>
-
-    {% if mutation_scan_result %}
-
-      <h2>Mutation Analysis Result</h2>
-
-      <div class="ai-dashboard">
-        <div class="ai-dashboard-title">
-          Mutation Impact Summary
-        </div>
-
-        <div class="ai-card">
-          <h3>Mutation Overview</h3>
-          <p>
-            {{ mutation_scan_result.mutation }}
-            chain {{ mutation_scan_result.chain_id }}:
-            {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
-            →
-            {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
-          </p>
-          {% if mutation_scan_result.selection_note %}
-            <p>{{ mutation_scan_result.selection_note }}</p>
-          {% endif %}
-        </div>
-
-        <div class="ai-card">
-          <h3>Property Changes</h3>
-          <ul>
-            {% for name, value in mutation_scan_result.property_changes.items() %}
-              <li>{{ name }}: {{ value }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div class="ai-card">
-          <h3>Interaction Impact</h3>
-          <p>Possible loss:</p>
-          <ul>
-            {% for item in mutation_scan_result.interaction_impact.possible_loss %}
-              <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-            {% else %}
-              <li>None predicted by current rules.</li>
-            {% endfor %}
-          </ul>
-
-          <p>Possible gain:</p>
-          <ul>
-            {% for item in mutation_scan_result.interaction_impact.possible_gain %}
-              <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-            {% else %}
-              <li>None predicted by current rules.</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div class="ai-card">
-          <h3>AI-style Mutation Interpretation</h3>
-          <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
-        </div>
-
-        <details>
-          <summary>View full mutation report</summary>
-          <div class="raw-report">{{ mutation_scan_text }}</div>
-        </details>
-      </div>
-
-    {% endif %}
-
-    <div class="section-divider"></div>
-
-    <h2>WT vs Mutant Comparison</h2>
-
-    <form action="/compare" method="post" enctype="multipart/form-data">
-
-      <p>WT PDB 文件：</p>
-      <input type="file" name="wt_file" required>
-
-      <p>Mutant PDB 文件：</p>
-      <input type="file" name="mut_file" required>
-
-      <p>Ligand 名称：</p>
-      <input type="text"
-             name="compare_ligand_name"
-             placeholder="例如：MK1 / CLR"
-             required>
-
-      <br>
-
-      <button type="submit" class="compare-btn">
-        Compare Mutation
-      </button>
-
-    </form>
-
-    {% if comparison_text %}
-
-      <h2>Mutation Comparison Result</h2>
-
-      <pre class="comparison-box">{{ comparison_text }}</pre>
-
-    {% endif %}
-
-    {% if not pdb_url and not comparison_text and not mutation_scan_result %}
-
-      <div class="placeholder">
-        上传 PDB 文件进行单结构分析、mutation scan，或者上传 WT + Mutant PDB 进行 mutation comparison。
-      </div>
-
-    {% endif %}
-
-  </div>
+      // Other forms still use the simple loading overlay
+      var overlay = document.getElementById("loading-overlay");
+      document.querySelectorAll("#tab-mutation form.analysis-form, #tab-compare form.analysis-form").forEach(function(form) {
+        form.addEventListener("submit", function() {
+          var btn = form.querySelector("button[type=submit]");
+          if (btn) {
+            btn.disabled = true;
+            var label = btn.querySelector(".btn-label");
+            if (label) label.textContent = "Analyzing...";
+          }
+          overlay.classList.add("active");
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

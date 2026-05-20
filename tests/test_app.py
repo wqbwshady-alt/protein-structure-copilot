@@ -20,6 +20,13 @@ class AppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Protein Structure Copilot", response.data)
+        self.assertIn(b"Select an analysis mode above", response.data)
+
+    def test_health_route(self):
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok"})
 
     def test_analyze_rejects_non_pdb_upload(self):
         response = self.client.post(
