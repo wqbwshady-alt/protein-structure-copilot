@@ -2786,7 +2786,8 @@
           var ligandInput = document.getElementById("ligand-analyze");
           var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
           var file = getAnalysisFileState();
-          var mode = getAnalysisMode();
+          var skipInput = document.getElementById("skip-ligand-mode");
+          var mode = (skipInput && skipInput.checked) ? "protein_only" : "ligand";
 
           console.log("[PSC] State:", {
             analysisMode: mode,
