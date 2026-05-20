@@ -8,6 +8,7 @@ from uuid import uuid4
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 DEFAULT_STATS_FILE = os.path.join(ROOT_DIR, "stats.json")
+DEFAULT_SEED_STATS_FILE = os.path.join(ROOT_DIR, "data", "stats_seed.json")
 MAX_RECENT = 20
 _lock = threading.Lock()
 
@@ -26,6 +27,10 @@ def _stats_file_path():
         return os.path.join(render_disk, "protein_structure_copilot_stats.json")
 
     return DEFAULT_STATS_FILE
+
+
+def _seed_stats_file_path():
+    return os.getenv("PSC_STATS_SEED_FILE", DEFAULT_SEED_STATS_FILE)
 
 
 def _defaults():
@@ -95,8 +100,7 @@ def _normalize_stats(data):
     }
 
 
-def _read():
-    path = _stats_file_path()
+def _read_file(path):
     if not os.path.exists(path):
         return _defaults()
     try:
@@ -104,6 +108,49 @@ def _read():
             return _normalize_stats(json.load(f))
     except (json.JSONDecodeError, OSError, ValueError):
         return _defaults()
+
+
+def _entry_key(entry):
+    return (
+        entry.get("timestamp"),
+        entry.get("analysis_type"),
+        entry.get("pdb_id"),
+        entry.get("pdb_name"),
+        entry.get("ligand_name"),
+        entry.get("mutation"),
+        entry.get("mode"),
+    )
+
+
+def _merge_seed(stats):
+    seed = _read_file(_seed_stats_file_path())
+    if seed["total_analyses"] <= 0 and not seed["recent_analyses"]:
+        return stats
+
+    merged = {
+        "total_analyses": max(stats["total_analyses"], seed["total_analyses"]),
+        "last_updated": stats["last_updated"] or seed["last_updated"],
+        "recent_analyses": [],
+    }
+
+    if stats["last_updated"] and seed["last_updated"]:
+        merged["last_updated"] = max(stats["last_updated"], seed["last_updated"])
+
+    seen = set()
+    for entry in stats["recent_analyses"] + seed["recent_analyses"]:
+        key = _entry_key(entry)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged["recent_analyses"].append(entry)
+        if len(merged["recent_analyses"]) >= MAX_RECENT:
+            break
+
+    return merged
+
+
+def _read():
+    return _merge_seed(_read_file(_stats_file_path()))
 
 
 def _write(stats):
