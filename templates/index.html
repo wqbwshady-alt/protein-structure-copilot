@@ -1877,18 +1877,13 @@
         return !!(skipInput && skipInput.checked);
       }
 
-      function getAnalysisMode() {
-        var skipInput = document.getElementById("skip-ligand-mode");
-        return skipInput && skipInput.checked ? "protein_only" : "ligand";
-      }
-
       function updateSkipLigandModeUI() {
         var skipInput = document.getElementById("skip-ligand-mode");
         var ligandInput = document.getElementById("ligand-analyze");
         var statusEl = document.getElementById("analysis-status");
         if (!skipInput || !ligandInput) return;
 
-        var mode = getAnalysisMode();
+        var mode = (skipInput && skipInput.checked) ? "protein_only" : "ligand";
 
         if (mode === "protein_only") {
           ligandInput.value = "";
