@@ -1045,7 +1045,8 @@
           <div class="form-group">
             <label for="ligand-analyze">Ligand Name</label>
             <input type="text" id="ligand-analyze" class="text-input"
-                   name="ligand_name" placeholder="e.g. MK1 / CLR" required>
+                   name="ligand_name" placeholder="e.g. MK1 / CLR" list="ligand-candidates" required>
+            <datalist id="ligand-candidates"></datalist>
             <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
           </div>
 
@@ -1714,6 +1715,97 @@
         return (bytes / (1024 * 1024)).toFixed(1) + " MB";
       }
 
+      var ignoredLigandResidues = new Set([
+        "HOH", "WAT", "H2O", "DOD",
+        "NA", "CL", "K", "MG", "CA", "ZN", "MN", "FE", "CU", "CO", "NI", "CD",
+        "HG", "IOD", "BR", "F", "LI", "CS", "RB", "AL", "BA", "SR", "YB"
+      ]);
+
+      function detectLigandsFromPdbText(pdbText) {
+        var ligandsByName = new Map();
+        String(pdbText || "").split(/\r?\n/).forEach(function(line) {
+          if (!line || line.slice(0, 6).trim() !== "HETATM") return;
+
+          var resName = line.slice(17, 20).trim().toUpperCase();
+          if (!resName || ignoredLigandResidues.has(resName)) return;
+
+          var chainId = line.slice(21, 22).trim();
+          var resId = line.slice(22, 26).trim();
+          if (!ligandsByName.has(resName)) {
+            ligandsByName.set(resName, {
+              name: resName,
+              locations: []
+            });
+          }
+          if (chainId || resId) {
+            ligandsByName.get(resName).locations.push((chainId ? "chain " + chainId + " " : "") + "residue " + resId);
+          }
+        });
+
+        return Array.from(ligandsByName.values()).sort(function(a, b) {
+          return a.name.localeCompare(b.name);
+        });
+      }
+      window.PSCDetectLigandsFromPdbText = detectLigandsFromPdbText;
+
+      function clearLigandCandidates() {
+        var datalist = document.getElementById("ligand-candidates");
+        if (datalist) datalist.innerHTML = "";
+      }
+
+      function updateLigandCandidates(ligands, sourceLabel) {
+        var ligandInput = document.getElementById("ligand-analyze");
+        var datalist = document.getElementById("ligand-candidates");
+        var fetchStatus = document.getElementById("fetch-status");
+        var names = (ligands || []).map(function(ligand) { return ligand.name; });
+
+        if (datalist) {
+          datalist.innerHTML = "";
+          names.forEach(function(name) {
+            var option = document.createElement("option");
+            option.value = name;
+            datalist.appendChild(option);
+          });
+        }
+
+        if (!names.length) {
+          if (fetchStatus) {
+            fetchStatus.innerHTML += ' <span style="color:#64748b;">No ligand candidates detected.</span>';
+          }
+          return;
+        }
+
+        if (fetchStatus) {
+          fetchStatus.innerHTML += ' <span style="color:#64748b;">Ligands: ' + names.slice(0, 6).join(", ") + '</span>';
+        }
+
+        if (ligandInput) {
+          if (names.length === 1) {
+            ligandInput.value = names[0];
+          } else if (!names.includes(ligandInput.value.trim().toUpperCase())) {
+            ligandInput.value = "";
+            ligandInput.focus();
+          }
+        }
+      }
+
+      function detectLigandsFromFile(file, sourceLabel) {
+        var fetchStatus = document.getElementById("fetch-status");
+        if (!file || typeof FileReader === "undefined") return;
+
+        var reader = new FileReader();
+        reader.onload = function() {
+          var ligands = detectLigandsFromPdbText(reader.result);
+          updateLigandCandidates(ligands, sourceLabel);
+        };
+        reader.onerror = function() {
+          if (fetchStatus) {
+            fetchStatus.innerHTML += ' <span style="color:#ef4444;">Could not read PDB file for ligand detection.</span>';
+          }
+        };
+        reader.readAsText(file);
+      }
+
       // ===== Unified analysis file state =====
       var analysisFile = window.PSCAnalysisFile = {
         name: null,
@@ -1788,6 +1880,7 @@
             zone.classList.remove("has-file");
             if (error) error.style.display = "block";
             if (zone.id === "drop-zone-analyze") {
+              clearLigandCandidates();
               setAnalysisFile({ ready: false });
             }
             return;
@@ -1797,6 +1890,11 @@
           var sizeStr = formatSize(file.size);
 
           if (zone.id === "drop-zone-analyze") {
+            clearLigandCandidates();
+            var fetchStatus = document.getElementById("fetch-status");
+            if (fetchStatus) {
+              fetchStatus.innerHTML = '<span style="color:#3b82f6;">Detecting ligand candidates...</span>';
+            }
             setAnalysisFile({
               name: file.name,
               size: sizeStr,
@@ -1805,6 +1903,7 @@
               pdbFilename: null,
               ready: true
             });
+            detectLigandsFromFile(file, "upload");
           }
 
           if (file.size > 10 * 1024 * 1024 && warning) {
@@ -1818,6 +1917,9 @@
           if (error) error.style.display = "none";
           input.value = "";
           if (zone.id === "drop-zone-analyze") {
+            clearLigandCandidates();
+            var ligandInput = document.getElementById("ligand-analyze");
+            if (ligandInput) ligandInput.value = "";
             setAnalysisFile({ ready: false });
           }
         }
@@ -1885,6 +1987,7 @@
               fetchBtn.disabled = false;
               if (!data.success) {
                 fetchStatus.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
+                clearLigandCandidates();
                 setAnalysisFile({ ready: false });
                 return;
               }
@@ -1915,25 +2018,22 @@
                   });
 
                   fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
-
-                  if (data.ligands && data.ligands.length > 0) {
-                    var ligandInput = document.getElementById("ligand-analyze");
-                    var suggestions = data.ligands.slice(0, 6).join(", ");
-                    fetchStatus.innerHTML += ' <span style="color:#64748b;">Ligands: ' + suggestions + '</span>';
-                    if (ligandInput && !ligandInput.value.trim() && data.ligands.length === 1) {
-                      ligandInput.value = data.ligands[0];
-                    }
-                  }
+                  return blob.text();
+                })
+                .then(function(pdbText) {
+                  updateLigandCandidates(detectLigandsFromPdbText(pdbText), "rcsb");
                 })
                 .catch(function(err) {
                   console.error("[PSC] Failed to download PDB content:", err);
                   fetchStatus.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
+                  clearLigandCandidates();
                   setAnalysisFile({ ready: false });
                 });
             })
             .catch(function(err) {
               fetchBtn.disabled = false;
               fetchStatus.innerHTML = '<span style="color:#ef4444;">Network error: ' + (err.message || "unknown") + '</span>';
+              clearLigandCandidates();
             });
         });
 
