@@ -116,42 +116,78 @@
     /* Drop zone */
     .drop-zone {
       border: 2px dashed #cbd5e1;
-      border-radius: 12px;
-      padding: 28px 20px;
+      border-radius: 16px;
+      padding: 36px 24px;
       text-align: center;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s;
       background: #f8fafc;
       position: relative;
     }
 
-    .drop-zone:hover, .drop-zone.drag-over {
+    .drop-zone:hover {
+      border-color: #93c5fd;
+      background: #f0f7ff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.08);
+    }
+
+    .drop-zone.drag-over {
       border-color: #2563eb;
       background: #eff6ff;
+      transform: scale(1.01);
+      box-shadow: 0 0 0 8px rgba(37,99,235,0.06);
+      border-style: solid;
     }
 
     .drop-zone.has-file {
       border-color: #22c55e;
+      border-style: solid;
       background: #f0fdf4;
     }
 
     .drop-zone.has-error {
       border-color: #ef4444;
+      border-style: solid;
       background: #fef2f2;
     }
 
+    .drop-zone-placeholder {
+      transition: opacity 0.2s;
+    }
+
     .drop-zone-icon {
-      font-size: 32px;
-      margin-bottom: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      background: #e0e7ff;
+      border-radius: 14px;
+      margin-bottom: 14px;
+      font-size: 28px;
+      transition: background 0.25s, transform 0.25s;
+    }
+
+    .drop-zone:hover .drop-zone-icon {
+      background: #c7d2fe;
+      transform: scale(1.05);
+    }
+
+    .drop-zone.drag-over .drop-zone-icon {
+      background: #bfdbfe;
+      transform: scale(1.08);
     }
 
     .drop-zone-text {
-      font-size: 14px;
+      font-size: 15px;
       color: #64748b;
+      line-height: 1.6;
     }
 
     .drop-zone-text strong {
       color: #2563eb;
+      font-weight: 600;
     }
 
     .drop-zone input[type="file"] {
@@ -163,41 +199,86 @@
 
     .file-info {
       display: none;
-      margin-top: 10px;
-      font-size: 13px;
-      color: #334155;
       align-items: center;
-      gap: 8px;
+      gap: 14px;
       justify-content: center;
+      padding: 8px 0;
     }
 
     .drop-zone.has-file .file-info { display: flex; }
     .drop-zone.has-file .drop-zone-placeholder { display: none; }
 
-    .file-info .check {
-      color: #22c55e;
-      font-weight: bold;
-      font-size: 16px;
+    .file-icon-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      background: #dcfce7;
+      border-radius: 14px;
+      font-size: 26px;
+      flex-shrink: 0;
     }
+
+    .file-details {
+      text-align: left;
+      line-height: 1.5;
+    }
+
+    .file-details .file-name-display {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+      word-break: break-all;
+    }
+
+    .file-details .file-meta {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .file-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #dcfce7;
+      color: #16a34a;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-top: 4px;
+    }
+
+    .file-change-hint {
+      display: none;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 12px;
+    }
+
+    .drop-zone.has-file .file-change-hint { display: block; }
 
     .file-size-warning {
       display: none;
-      margin-top: 8px;
+      margin-top: 10px;
       font-size: 12px;
       color: #d97706;
       background: #fef3c7;
       padding: 6px 12px;
       border-radius: 6px;
+      text-align: center;
     }
 
     .file-error {
       display: none;
-      margin-top: 8px;
+      margin-top: 10px;
       font-size: 12px;
       color: #dc2626;
       background: #fee2e2;
       padding: 6px 12px;
       border-radius: 6px;
+      text-align: center;
     }
 
     /* Buttons */
@@ -753,16 +834,22 @@
             <label>PDB File</label>
             <div class="drop-zone" id="drop-zone-analyze">
               <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-icon">🧬</div>
                 <div class="drop-zone-text">
-                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                  <strong>Choose a PDB file</strong> or drag it here
                 </div>
               </div>
               <div class="file-info">
-                <span class="check">&#x2713;</span>
-                <span class="file-name"></span>
-                <span class="file-size"></span>
+                <div class="file-icon-wrapper">🧬</div>
+                <div class="file-details">
+                  <div class="file-name-display"></div>
+                  <div class="file-meta"></div>
+                  <div class="file-status-badge">
+                    <span>✓</span> Ready for analysis
+                  </div>
+                </div>
               </div>
+              <div class="file-change-hint">Click or drop a different file to replace</div>
               <input type="file" name="pdb_file" accept=".pdb" required>
             </div>
             <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
@@ -789,16 +876,22 @@
             <label>PDB File</label>
             <div class="drop-zone" id="drop-zone-mutation">
               <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-icon">🧬</div>
                 <div class="drop-zone-text">
-                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                  <strong>Choose a PDB file</strong> or drag it here
                 </div>
               </div>
               <div class="file-info">
-                <span class="check">&#x2713;</span>
-                <span class="file-name"></span>
-                <span class="file-size"></span>
+                <div class="file-icon-wrapper">🧬</div>
+                <div class="file-details">
+                  <div class="file-name-display"></div>
+                  <div class="file-meta"></div>
+                  <div class="file-status-badge">
+                    <span>✓</span> Ready for analysis
+                  </div>
+                </div>
               </div>
+              <div class="file-change-hint">Click or drop a different file to replace</div>
               <input type="file" name="mutation_pdb_file" accept=".pdb" required>
             </div>
             <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
@@ -839,16 +932,22 @@
             <label>WT PDB File</label>
             <div class="drop-zone" id="drop-zone-wt">
               <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-icon">🧬</div>
                 <div class="drop-zone-text">
-                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                  <strong>Choose a PDB file</strong> or drag it here
                 </div>
               </div>
               <div class="file-info">
-                <span class="check">&#x2713;</span>
-                <span class="file-name"></span>
-                <span class="file-size"></span>
+                <div class="file-icon-wrapper">🧬</div>
+                <div class="file-details">
+                  <div class="file-name-display"></div>
+                  <div class="file-meta"></div>
+                  <div class="file-status-badge">
+                    <span>✓</span> Ready for analysis
+                  </div>
+                </div>
               </div>
+              <div class="file-change-hint">Click or drop a different file to replace</div>
               <input type="file" name="wt_file" accept=".pdb" required>
             </div>
             <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
@@ -859,16 +958,22 @@
             <label>Mutant PDB File</label>
             <div class="drop-zone" id="drop-zone-mut">
               <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">&#x1F4C4;</div>
+                <div class="drop-zone-icon">🧬</div>
                 <div class="drop-zone-text">
-                  <strong>Choose a file</strong> or drag it here &mdash; .pdb only
+                  <strong>Choose a PDB file</strong> or drag it here
                 </div>
               </div>
               <div class="file-info">
-                <span class="check">&#x2713;</span>
-                <span class="file-name"></span>
-                <span class="file-size"></span>
+                <div class="file-icon-wrapper">🧬</div>
+                <div class="file-details">
+                  <div class="file-name-display"></div>
+                  <div class="file-meta"></div>
+                  <div class="file-status-badge">
+                    <span>✓</span> Ready for analysis
+                  </div>
+                </div>
               </div>
+              <div class="file-change-hint">Click or drop a different file to replace</div>
               <input type="file" name="mut_file" accept=".pdb" required>
             </div>
             <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
@@ -1420,8 +1525,8 @@
 
       function setupDropZone(zone) {
         var input = zone.querySelector('input[type="file"]');
-        var fileName = zone.querySelector(".file-name");
-        var fileSize = zone.querySelector(".file-size");
+        var fileNameDisplay = zone.querySelector(".file-name-display");
+        var fileMeta = zone.querySelector(".file-meta");
         var warning = zone.querySelector(".file-size-warning");
         var error = zone.querySelector(".file-error");
 
@@ -1440,8 +1545,8 @@
           }
 
           zone.classList.add("has-file");
-          fileName.textContent = file.name;
-          fileSize.textContent = "(" + formatSize(file.size) + ")";
+          fileNameDisplay.textContent = file.name;
+          fileMeta.textContent = formatSize(file.size);
 
           if (file.size > 10 * 1024 * 1024) {
             warning.style.display = "block";
