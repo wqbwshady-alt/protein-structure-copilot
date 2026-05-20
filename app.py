@@ -516,10 +516,16 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
 
 @app.route("/compare", methods=["POST"])
 def compare():
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest" or
+        request.accept_mimetypes.best == "application/json"
+    )
     ligand_name = request.form.get("compare_ligand_name", "").strip().upper()
 
     if not ligand_name:
         error_text = "Please enter ligand name for comparison, for example: MK1 / CLR."
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     wt_filename, wt_path, error_text = resolve_structure_input(
@@ -530,6 +536,8 @@ def compare():
     )
 
     if error_text:
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     mut_filename, mut_path, error_text = resolve_structure_input(
@@ -540,6 +548,8 @@ def compare():
     )
 
     if error_text:
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     wt_contacts, wt_counts, wt_primary_interpretation, wt_interactions = analyze_ligand_pocket(
@@ -557,6 +567,8 @@ def compare():
             f"No ligand named {ligand_name} found in WT PDB file.\n"
             f"{format_ligand_suggestions(list_ligands(wt_path))}"
         )
+        if wants_json:
+            return jsonify({"success": False, "error_text": result_text, "ai_html": make_html(result_text)})
         return render_index(result_text=result_text, ai_html=make_html(result_text))
 
     if mut_contacts is None:
@@ -564,6 +576,15 @@ def compare():
             f"No ligand named {ligand_name} found in Mutant PDB file.\n"
             f"{format_ligand_suggestions(list_ligands(mut_path))}"
         )
+        if wants_json:
+            return jsonify({
+                "success": False,
+                "error_text": result_text,
+                "ai_html": make_html(result_text),
+                "pdb_url": url_for("uploaded_file", filename=wt_filename),
+                "interaction_data": wt_interactions,
+                "hotspot_residues": get_hotspot_residues(wt_interactions)
+            })
         return render_index(
             result_text=result_text,
             ai_html=make_html(result_text),
@@ -594,21 +615,29 @@ def compare():
         comparison_text
     )
 
-    return render_index(
-        analysis_mode="comparison",
-        result_text=wt_report_text,
-        ai_html=make_html(wt_ai_text),
-        pdb_url=url_for("uploaded_file", filename=wt_filename),
-        interaction_data=wt_interactions,
-        comparison_text=comparison_text,
-        lost_residues=residue_keys_to_json(lost),
-        gained_residues=residue_keys_to_json(gained),
-        hotspot_residues=get_hotspot_residues(wt_interactions)
-    )
+    result = {
+        "success": True,
+        "analysis_mode": "comparison",
+        "result_text": wt_report_text,
+        "ai_html": make_html(wt_ai_text),
+        "pdb_url": url_for("uploaded_file", filename=wt_filename),
+        "interaction_data": wt_interactions,
+        "comparison_text": comparison_text,
+        "lost_residues": residue_keys_to_json(lost),
+        "gained_residues": residue_keys_to_json(gained),
+        "hotspot_residues": get_hotspot_residues(wt_interactions)
+    }
+    if wants_json:
+        return jsonify(result)
+    return render_index(**result)
 
 
 @app.route("/mutation_scan", methods=["POST"])
 def mutation_scan():
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest" or
+        request.accept_mimetypes.best == "application/json"
+    )
     ligand_name = request.form.get("mutation_ligand_name", "").strip().upper()
     mutation_text = request.form.get("mutation_text", "").strip().upper()
     chain_id = request.form.get("mutation_chain_id", "").strip()
@@ -619,14 +648,20 @@ def mutation_scan():
     )
 
     if error_text:
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     if not ligand_name:
         error_text = "Please enter ligand name for mutation scan."
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     if not mutation_text:
         error_text = "Please enter mutation, for example: R273H."
+        if wants_json:
+            return jsonify({"success": False, "error_text": error_text, "ai_html": make_html(error_text)})
         return render_index(result_text=error_text, ai_html=make_html(error_text))
 
     try:
@@ -638,6 +673,13 @@ def mutation_scan():
         )
     except MutationScanError as error:
         error_text = str(error)
+        if wants_json:
+            return jsonify({
+                "success": False,
+                "error_text": error_text,
+                "ai_html": make_html(error_text),
+                "pdb_url": url_for("uploaded_file", filename=filename)
+            })
         return render_index(
             result_text=error_text,
             ai_html=make_html(error_text),
@@ -651,16 +693,20 @@ def mutation_scan():
 
     mutation_scan_text = build_mutation_scan_report(mutation_result)
 
-    return render_index(
-        analysis_mode="mutation",
-        result_text=mutation_scan_text,
-        ai_html=make_html(mutation_result["ai_interpretation"]),
-        pdb_url=url_for("uploaded_file", filename=filename),
-        interaction_data=interactions,
-        hotspot_residues=get_hotspot_residues(interactions),
-        mutation_scan_result=mutation_result,
-        mutation_scan_text=mutation_scan_text
-    )
+    result = {
+        "success": True,
+        "analysis_mode": "mutation",
+        "result_text": mutation_scan_text,
+        "ai_html": make_html(mutation_result["ai_interpretation"]),
+        "pdb_url": url_for("uploaded_file", filename=filename),
+        "interaction_data": interactions,
+        "hotspot_residues": get_hotspot_residues(interactions),
+        "mutation_scan_result": mutation_result,
+        "mutation_scan_text": mutation_scan_text
+    }
+    if wants_json:
+        return jsonify(result)
+    return render_index(**result)
 
 
 def _fetch_pdb_from_rcsb(pdb_id):

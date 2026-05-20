@@ -1172,8 +1172,7 @@
 
       <!-- Tab: WT vs Mutant Comparison -->
       <div class="tab-panel" id="tab-compare">
-        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form"
-              onsubmit="return window.PSCValidateCompareForm ? window.PSCValidateCompareForm(event, this) : true;">
+        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form">
           <input type="hidden" name="wt_pdb_filename" id="wt-pdb-filename-hidden" value="">
           <input type="hidden" name="mut_pdb_filename" id="mut-pdb-filename-hidden" value="">
 
@@ -1830,13 +1829,50 @@
     </div><!-- /.content -->
   </div><!-- /.container -->
 
+  <!-- Tab state cache -->
+  <script>
+    (function() {
+      var cache = {};
+      window.PSCTabState = {
+        save: function(tabId, data) {
+          cache[tabId] = data;
+        },
+        get: function(tabId) {
+          return cache[tabId] || null;
+        },
+        getActiveTabId: function() {
+          var activeBtn = document.querySelector(".tab-btn.active");
+          return activeBtn ? activeBtn.getAttribute("data-tab") : "tab-single";
+        },
+        clearTab: function(tabId) {
+          delete cache[tabId];
+        },
+        restoreTab: function(tabId) {
+          var data = cache[tabId];
+          var root = document.getElementById("results-root");
+          if (!root) return false;
+          if (data && window.PSCRenderResults) {
+            window.PSCRenderResults(data);
+            if (data.pdb_url) {
+              setTimeout(function() {
+                if (window.PSCInitViewerFromData) window.PSCInitViewerFromData(data);
+              }, 150);
+            }
+            return true;
+          }
+          return false;
+        }
+      };
+    })();
+  </script>
+
   <!-- Tab switching -->
   <script>
     (function() {
       var tabBtns = document.querySelectorAll(".tab-btn");
       var tabPanels = document.querySelectorAll(".tab-panel");
 
-      function clearRenderedResults() {
+      function showPlaceholder() {
         var root = document.getElementById("results-root");
         if (!root) return;
         root.setAttribute("data-result-mode", "empty");
@@ -1849,14 +1885,18 @@
           var activePanel = document.querySelector(".tab-panel.active");
           var activeId = activePanel ? activePanel.id : "";
 
+          if (targetId === activeId) return;
+
           tabBtns.forEach(function(b) { b.classList.remove("active"); });
           tabPanels.forEach(function(p) { p.classList.remove("active"); });
 
           btn.classList.add("active");
           document.getElementById(targetId).classList.add("active");
-          if (targetId !== activeId) {
-            clearRenderedResults();
+
+          if (window.PSCTabState && window.PSCTabState.restoreTab(targetId)) {
+            return;
           }
+          showPlaceholder();
         });
       });
     })();
@@ -2822,6 +2862,7 @@
         var placeholder = container.querySelector(".placeholder");
         if (placeholder) placeholder.style.display = "none";
       }
+      window.PSCRenderResults = renderResults;
 
       function initViewerFromData(data) {
         if (!data.pdb_url) return;
@@ -3096,6 +3137,7 @@
             };
           });
       }
+      window.PSCInitViewerFromData = initViewerFromData;
 
       function handleResponse(data) {
         fetchComplete = true;
@@ -3111,6 +3153,9 @@
         setTimeout(function() {
           progressOverlay.classList.remove("active");
           renderResults(data);
+          if (window.PSCTabState) {
+            window.PSCTabState.save(window.PSCTabState.getActiveTabId(), data);
+          }
           setTimeout(function() {
             initViewerFromData(data);
           }, 150);
@@ -3368,35 +3413,100 @@
         console.error("[PSC] Could not find single form!");
       }
 
-      // Other forms still use the simple loading overlay
-      var overlay = document.getElementById("loading-overlay");
+      // AJAX submission for mutation scan and compare forms
       document.querySelectorAll("#tab-mutation form.analysis-form, #tab-compare form.analysis-form").forEach(function(form) {
         form.setAttribute("novalidate", "novalidate");
         form.addEventListener("submit", function(e) {
+          e.preventDefault();
           var isCompareForm = !!form.closest("#tab-compare");
+
+          // --- Validation ---
           if (isCompareForm) {
-            if (!validateCompareForm(e, form)) {
+            var wt = window.PSCWTStructure || {};
+            var mut = window.PSCMutantStructure || {};
+            if (!wt.ready || !mut.ready) {
+              showCompareError("Please load both WT and mutant structures from RCSB or local PDB files first.");
               return;
             }
           } else {
             var file = getAnalysisFileState();
             if (!file.ready) {
-              e.preventDefault();
               setSharedStructureMessage(form, file, true);
               return;
             }
-
             syncSharedStructureForm(form, file);
             setSharedStructureMessage(form, file, false);
           }
 
+          // --- Build FormData ---
+          var fd;
+          if (isCompareForm) {
+            fd = new FormData();
+            var ligandName = (document.getElementById("ligand-compare") || {}).value || "";
+            fd.append("compare_ligand_name", ligandName.trim().toUpperCase());
+            var wt2 = window.PSCWTStructure || {};
+            var mut2 = window.PSCMutantStructure || {};
+            if (wt2.fileObject) {
+              fd.append("wt_file", wt2.fileObject, wt2.name);
+            }
+            if (wt2.pdbFilename) {
+              fd.append("wt_pdb_filename", wt2.pdbFilename);
+            }
+            if (mut2.fileObject) {
+              fd.append("mut_file", mut2.fileObject, mut2.name);
+            }
+            if (mut2.pdbFilename) {
+              fd.append("mut_pdb_filename", mut2.pdbFilename);
+            }
+          } else {
+            fd = new FormData(form);
+          }
+
+          // --- UI: button state ---
           var btn = form.querySelector("button[type=submit]");
+          var btnLabel = btn ? btn.querySelector(".btn-label") : null;
+          var btnOrigText = btnLabel ? btnLabel.textContent : "";
           if (btn) {
             btn.disabled = true;
-            var label = btn.querySelector(".btn-label");
-            if (label) label.textContent = "Analyzing...";
+            if (btnLabel) btnLabel.textContent = "Analyzing...";
           }
-          overlay.classList.add("active");
+
+          // --- Progress overlay ---
+          currentStage = 0;
+          fetchComplete = false;
+          responseData = null;
+          clearStageTimers();
+          progressBarFill.style.background = "";
+          progressBarFill.style.width = "0%";
+          progressDone.classList.remove("show");
+          progressError.classList.remove("show");
+          progressTitle.textContent = "Analyzing Structure";
+          for (var i = 0; i < totalStages; i++) {
+            setStage(i, "pending");
+          }
+          progressOverlay.classList.add("active");
+          setStage(0, "active");
+          advanceStage();
+
+          // --- Fetch ---
+          var endpoint = isCompareForm ? "/compare" : "/mutation_scan";
+          fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "X-Requested-With": "XMLHttpRequest"
+            },
+            body: fd
+          })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) { handleResponse(data); })
+            .catch(function(err) { handleFetchError(err); })
+            .finally(function() {
+              if (btn) {
+                btn.disabled = false;
+                if (btnLabel) btnLabel.textContent = btnOrigText;
+              }
+            });
         });
       });
     })();
