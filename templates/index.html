@@ -196,6 +196,21 @@
       overflow: hidden;
     }
 
+    .recent-list.is-updating .recent-item {
+      animation: recentFade 420ms ease-out;
+    }
+
+    @keyframes recentFade {
+      from {
+        opacity: 0.55;
+        transform: translateY(3px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     .recent-item:hover {
       background: rgba(255,255,255,0.06);
     }
@@ -1175,7 +1190,7 @@
           <h1>Protein Structure Copilot</h1>
           <div class="stats-counter skeleton" id="stats-counter">
             <span class="counter-icon">🧬</span>
-            Total analyses run:
+            Total analyses since launch:
             <span class="counter-value">0</span>
           </div>
           <p style="margin-top: 12px;">Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
@@ -3719,6 +3734,15 @@
     (function() {
       var lastTotal = 0;
       var refreshTimer = null;
+      var lastRecentSignature = "";
+
+      function esc(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
 
       function animateNumber(el, target) {
         var current = parseInt(el.textContent.replace(/,/g, ""), 10) || 0;
@@ -3787,9 +3811,10 @@
 
       function buildDetail(entry) {
         var parts = [];
-        if (entry.ligand_name) parts.push(entry.ligand_name);
+        if (entry.ligand_name) parts.push("ligand " + entry.ligand_name);
         if (entry.mutation) parts.push(entry.mutation);
         if (entry.mode === "protein_only") parts.push("protein-only");
+        if (entry.source) parts.push(entry.source === "rcsb" ? "RCSB" : entry.source);
         return parts.join(" · ") || "";
       }
 
@@ -3797,30 +3822,42 @@
         fetch("/api/recent_analyses")
           .then(function(r) { return r.json(); })
           .then(function(records) {
+            records = Array.isArray(records) ? records : [];
             var section = document.getElementById("recent-section");
             var list = document.getElementById("recent-list");
             if (!section || !list) return;
 
             section.classList.remove("recent-skeleton");
+            var signature = JSON.stringify(records);
+            var shouldAnimate = lastRecentSignature && signature !== lastRecentSignature;
 
             if (!records.length) {
               list.innerHTML = '<div class="recent-item" style="color:#64748b;">No analyses yet. Run your first analysis above.</div>';
+              lastRecentSignature = signature;
               return;
             }
 
             var html = "";
             records.forEach(function(entry) {
+              var analysisType = entry.analysis_type || entry.type || "single";
+              var pdbLabel = entry.pdb_id || extractDisplayName(entry.pdb_name);
               html +=
                 '<div class="recent-item">' +
-                  '<span class="ri-type ' + typeCssClass(entry.type) + '">' + typeLabel(entry.type) + '</span>' +
+                  '<span class="ri-type ' + typeCssClass(analysisType) + '">' + esc(typeLabel(analysisType)) + '</span>' +
                   '<span class="ri-body">' +
-                    '<span class="ri-pdb" title="' + (entry.pdb_name || "") + '">' + extractDisplayName(entry.pdb_name) + '</span>' +
-                    '<span class="ri-detail">' + buildDetail(entry) + '</span>' +
+                    '<span class="ri-pdb" title="' + esc(entry.pdb_name || pdbLabel) + '">' + esc(pdbLabel) + '</span>' +
+                    '<span class="ri-detail">' + esc(buildDetail(entry)) + '</span>' +
                   '</span>' +
-                  '<span class="ri-time">' + timeAgo(entry.timestamp) + '</span>' +
+                  '<span class="ri-time">' + esc(timeAgo(entry.timestamp)) + '</span>' +
                 '</div>';
             });
             list.innerHTML = html;
+            if (shouldAnimate) {
+              list.classList.remove("is-updating");
+              void list.offsetWidth;
+              list.classList.add("is-updating");
+            }
+            lastRecentSignature = signature;
           })
           .catch(function() {});
       }

@@ -26,7 +26,7 @@ from analysis_core import (
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from services.mutation_scan import MutationScanError, analyze_mutation_scan
-from services.stats import get_stats, get_recent, record_analysis
+from services.stats import ensure_stats_store, get_stats, get_recent, record_analysis
 
 
 load_dotenv()
@@ -40,6 +40,7 @@ ALLOWED_EXTENSIONS = {".pdb"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
+ensure_stats_store()
 
 
 def make_urlopen_context():
@@ -206,6 +207,13 @@ def _detect_source(filename):
     if filename and filename.startswith("RCSB_"):
         return "rcsb"
     return "local"
+
+
+def _detect_pair_source(wt_filename, mut_filename):
+    sources = {_detect_source(wt_filename), _detect_source(mut_filename)}
+    if len(sources) == 1:
+        return sources.pop()
+    return "mixed"
 
 
 @app.route("/analyze", methods=["POST"])
@@ -443,7 +451,7 @@ def _build_protein_only_result(pdb_path, filename):
     )
 
     record_analysis({
-        "type": "single",
+        "analysis_type": "single",
         "pdb_name": filename,
         "source": _detect_source(filename),
         "mode": "protein_only",
@@ -528,7 +536,7 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
     )
 
     record_analysis({
-        "type": "single",
+        "analysis_type": "single",
         "pdb_name": filename,
         "ligand_name": ligand_name,
         "source": _detect_source(filename),
@@ -653,10 +661,10 @@ def compare():
     )
 
     record_analysis({
-        "type": "comparison",
+        "analysis_type": "comparison",
         "pdb_name": f"{wt_filename} vs {mut_filename}",
         "ligand_name": ligand_name,
-        "source": _detect_source(wt_filename),
+        "source": _detect_pair_source(wt_filename, mut_filename),
         "mode": "comparison",
     })
 
@@ -739,7 +747,7 @@ def mutation_scan():
     mutation_scan_text = build_mutation_scan_report(mutation_result)
 
     record_analysis({
-        "type": "mutation",
+        "analysis_type": "mutation",
         "pdb_name": filename,
         "ligand_name": ligand_name,
         "mutation": mutation_text,

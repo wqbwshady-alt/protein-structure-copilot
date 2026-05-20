@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 import app as app_module
+from services.stats import ensure_stats_store
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -13,6 +14,15 @@ ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 class AppTest(unittest.TestCase):
     def setUp(self):
         app_module.app.config["TESTING"] = True
+        self.stats_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.stats_dir.cleanup)
+        self.stats_env = patch.dict(
+            os.environ,
+            {"PSC_STATS_FILE": os.path.join(self.stats_dir.name, "stats.json")}
+        )
+        self.stats_env.start()
+        self.addCleanup(self.stats_env.stop)
+        ensure_stats_store()
         self.client = app_module.app.test_client()
 
     def test_index_loads(self):
@@ -27,6 +37,15 @@ class AppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"status": "ok"})
+
+    def test_stats_api_uses_server_side_store(self):
+        response = self.client.get("/api/stats")
+        recent_response = self.client.get("/api/recent_analyses")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["total_analyses"], 0)
+        self.assertEqual(recent_response.status_code, 200)
+        self.assertEqual(recent_response.get_json(), [])
 
     def test_analyze_rejects_non_pdb_upload(self):
         response = self.client.post(
@@ -98,6 +117,11 @@ class AppTest(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIn("result_text", data)
         self.assertIn("pdb_url", data)
+        stats = self.client.get("/api/stats").get_json()
+        recent = self.client.get("/api/recent_analyses").get_json()
+        self.assertEqual(stats["total_analyses"], 1)
+        self.assertEqual(recent[0]["analysis_type"], "single")
+        self.assertEqual(recent[0]["ligand_name"], "MK1")
 
     def test_analyze_json_fetched_filename_uses_analyze_route(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
@@ -181,6 +205,11 @@ class AppTest(unittest.TestCase):
         self.assertIn(b"Mutation Impact Summary", response.data)
         self.assertIn(b"D25A", response.data)
         self.assertIn(b"Property Changes", response.data)
+        stats = self.client.get("/api/stats").get_json()
+        recent = self.client.get("/api/recent_analyses").get_json()
+        self.assertEqual(stats["total_analyses"], 1)
+        self.assertEqual(recent[0]["analysis_type"], "mutation")
+        self.assertEqual(recent[0]["mutation"], "D25A")
 
     def test_mutation_scan_accepts_loaded_pdb_filename(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
@@ -233,6 +262,10 @@ class AppTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"WT vs Mutant Pocket Comparison", response.data)
         self.assertIn(b"Target ligand: MK1", response.data)
+        stats = self.client.get("/api/stats").get_json()
+        recent = self.client.get("/api/recent_analyses").get_json()
+        self.assertEqual(stats["total_analyses"], 1)
+        self.assertEqual(recent[0]["analysis_type"], "comparison")
 
 
 if __name__ == "__main__":
