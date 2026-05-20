@@ -1738,6 +1738,10 @@
           fileNameDisplay.textContent = file.name;
           fileSizeDisplay.textContent = formatSize(file.size);
 
+          // Clear RCSB-fetched filename so local upload takes priority
+          var hiddenFname = document.getElementById("pdb-filename-hidden");
+          if (hiddenFname) hiddenFname.value = "";
+
           if (file.size > 10 * 1024 * 1024) {
             warning.style.display = "block";
           }
@@ -1748,6 +1752,8 @@
           warning.style.display = "none";
           error.style.display = "none";
           input.value = "";
+          var hiddenFname = document.getElementById("pdb-filename-hidden");
+          if (hiddenFname) hiddenFname.value = "";
         }
 
         input.addEventListener("change", function() {
@@ -1828,9 +1834,10 @@
               fileNameDisplay.textContent = pdbId + ".pdb";
               fileSizeDisplay.textContent = "Fetched from RCSB PDB";
 
-              // Store the filename for the analyze flow
+              // Store the filename, clear file input to avoid conflict
               var hiddenInput = document.getElementById("pdb-filename-hidden");
               if (hiddenInput) hiddenInput.value = data.filename;
+              if (fileInput) fileInput.value = "";
 
               if (data.ligands && data.ligands.length > 0) {
                 var ligandInput = document.getElementById("ligand-analyze");
