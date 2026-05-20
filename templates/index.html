@@ -1877,24 +1877,33 @@
         return !!(skipInput && skipInput.checked);
       }
 
+      function getAnalysisMode() {
+        var skipInput = document.getElementById("skip-ligand-mode");
+        return skipInput && skipInput.checked ? "protein_only" : "ligand";
+      }
+
       function updateSkipLigandModeUI() {
         var skipInput = document.getElementById("skip-ligand-mode");
         var ligandInput = document.getElementById("ligand-analyze");
         var statusEl = document.getElementById("analysis-status");
         if (!skipInput || !ligandInput) return;
 
-        if (skipInput.checked) {
+        var mode = getAnalysisMode();
+
+        if (mode === "protein_only") {
           ligandInput.value = "";
           ligandInput.disabled = true;
-          ligandInput.placeholder = "Ligand skipped";
+          ligandInput.placeholder = "Ligand skipped (protein-only mode)";
           if (statusEl) {
-            statusEl.innerHTML = '<span style="color:#3b82f6;">Skip ligand mode enabled. Protein-only structural analysis preview will be shown.</span>';
+            statusEl.innerHTML = '<span style="color:#3b82f6;">Protein-only analysis mode · No ligand required · Click Analyze Structure to proceed</span>';
           }
         } else {
           ligandInput.disabled = false;
           ligandInput.placeholder = "e.g. MK1 / CLR";
           if (statusEl && analysisFile.ready) {
-            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for analysis</span>';
+            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for ligand-pocket analysis</span>';
+          } else if (statusEl) {
+            statusEl.innerHTML = '';
           }
         }
       }
@@ -2735,109 +2744,6 @@
         showError("Network error: " + (err.message || "Could not reach server"));
       }
 
-      function summarizeProteinOnlyPdb(pdbText) {
-        var chains = new Set();
-        var residues = new Set();
-        var atomCount = 0;
-        var hetatmCount = 0;
-
-        String(pdbText || "").split(/\r?\n/).forEach(function(line) {
-          var recordType = line.slice(0, 6).trim();
-          if (recordType === "ATOM") {
-            atomCount += 1;
-            var chainId = line.slice(21, 22).trim() || "(blank)";
-            var resName = line.slice(17, 20).trim();
-            var resId = line.slice(22, 26).trim();
-            chains.add(chainId);
-            residues.add(chainId + ":" + resName + ":" + resId);
-          } else if (recordType === "HETATM") {
-            hetatmCount += 1;
-          }
-        });
-
-        return {
-          atomCount: atomCount,
-          hetatmCount: hetatmCount,
-          chainCount: chains.size,
-          residueCount: residues.size
-        };
-      }
-
-      function renderProteinOnlyResult(analysisFile, summary) {
-        function esc(s) {
-          return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
-        if (!resultsContainer) {
-          resultsContainer = document.getElementById("results-container");
-        }
-
-        var container = resultsContainer || document.querySelector(".content");
-        if (!container) return;
-
-        var existing = container.querySelector(".main-area");
-        if (existing) existing.remove();
-
-        var errorBox = container.querySelector(".error-box");
-        if (errorBox) errorBox.remove();
-
-        var placeholder = container.querySelector(".placeholder");
-        if (placeholder) placeholder.style.display = "none";
-
-        var html = '<div class="main-area results-container fade-in">' +
-          '<div>' +
-            '<h2>Protein-only Structure</h2>' +
-            '<div class="info-box">Skip ligand mode is enabled. No ligand pocket analysis was run.</div>' +
-          '</div>' +
-          '<div>' +
-            '<h2>Structure Summary</h2>' +
-            '<div class="ai-dashboard">' +
-              '<div class="ai-dashboard-title">Protein-only structural analysis preview</div>' +
-              '<div class="ai-card"><h3>Input</h3><p>' + esc(analysisFile.name || "PDB file") + '</p></div>' +
-              '<div class="ai-card"><h3>Protein Records</h3><p>' +
-                summary.atomCount + ' ATOM records, ' +
-                summary.residueCount + ' residues, ' +
-                summary.chainCount + ' chain(s).</p></div>' +
-              '<div class="ai-card"><h3>Ligand Status</h3><p>No ligand residue was selected. You may manually enter a residue name to run ligand-pocket analysis.</p></div>' +
-              '<div class="ai-card"><h3>Future Support</h3><p>Protein-only structural analysis will expand to fold, chain, and residue-level summaries.</p></div>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-        container.insertAdjacentHTML("beforeend", html);
-      }
-
-      function runProteinOnlyMode(analysisFile, btn) {
-        var fileObject = analysisFile.fileObject;
-        if (!fileObject || typeof fileObject.text !== "function") {
-          showInlineAnalysisInfo("Protein-only mode needs the PDB text. Please upload or fetch the structure again.");
-          return;
-        }
-
-        if (btn) {
-          btn.disabled = true;
-          var label = btn.querySelector(".btn-label");
-          if (label) label.textContent = "Analyzing...";
-        }
-
-        fileObject.text()
-          .then(function(pdbText) {
-            renderProteinOnlyResult(analysisFile, summarizeProteinOnlyPdb(pdbText));
-            showInlineAnalysisInfo("Protein-only structural analysis preview generated.");
-          })
-          .catch(function(err) {
-            console.error("[PSC] Protein-only analysis failed:", err);
-            showInlineAnalysisInfo("Could not read the PDB text for protein-only mode. Please upload or fetch the structure again.");
-          })
-          .finally(function() {
-            if (btn) {
-              btn.disabled = false;
-              var label = btn.querySelector(".btn-label");
-              if (label) label.textContent = "Analyze Structure";
-            }
-          });
-      }
-
       function getAnalysisFileState() {
         return window.PSCAnalysisFile || {
           name: null,
@@ -2878,54 +2784,67 @@
           var btn = singleForm.querySelector("button[type=submit]");
           var ligandInput = document.getElementById("ligand-analyze");
           var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
-          var analysisFile = getAnalysisFileState();
-          var skipLigandMode = isSkipLigandMode();
+          var file = getAnalysisFileState();
+          var mode = getAnalysisMode();
 
           console.log("[PSC] State:", {
+            analysisMode: mode,
             analysisFile: {
-              name: analysisFile.name,
-              source: analysisFile.source,
-              ready: analysisFile.ready,
-              hasFileObject: !!analysisFile.fileObject
+              name: file.name,
+              source: file.source,
+              ready: file.ready,
+              hasFileObject: !!file.fileObject
             },
             ligandName: ligandName,
-            skipLigandMode: skipLigandMode,
             ligandDetection: window.PSCLigandDetectionState,
-            canAnalyze: analysisFile.ready && (!!ligandName || skipLigandMode)
+            canAnalyze: file.ready && (mode === "protein_only" || !!ligandName)
           });
 
           // Validate
-          if (!analysisFile.ready) {
+          if (!file.ready) {
             showInlineAnalysisError("Please upload a PDB file or fetch from RCSB first.");
             console.log("[PSC] ABORT: analysisFile not ready");
             return;
           }
 
-          if (!ligandName && !skipLigandMode) {
-            showInlineAnalysisInfo("No ligand detected in this structure.<br>You may manually enter a residue name.");
-            console.log("[PSC] ABORT: no ligand name");
-            return;
+          // === Mode: ligand ===
+          if (mode === "ligand") {
+            if (!ligandName) {
+              showInlineAnalysisInfo("Please enter a ligand name, or enable protein-only analysis mode.");
+              console.log("[PSC] ABORT: ligand mode requires ligandName");
+              return;
+            }
           }
 
-          // Build FormData with unified analysisFile before changing UI state.
+          // === Mode: protein_only ===
+          if (mode === "protein_only") {
+            ligandName = "";  // explicitly clear
+          }
+
+          // Build FormData
           var fd = new FormData();
-          fd.append("ligand_name", skipLigandMode ? "" : ligandName);
-          if (skipLigandMode) {
+          fd.append("ligand_name", ligandName);
+          if (mode === "protein_only") {
             fd.append("skipLigand", "true");
           }
-          if (analysisFile.fileObject) {
-            fd.append("pdb_file", analysisFile.fileObject, analysisFile.name);
-            console.log("[PSC] Appended pdb_file:", analysisFile.name, "size:", analysisFile.fileObject.size);
+          if (file.fileObject) {
+            fd.append("pdb_file", file.fileObject, file.name);
           }
-          if (analysisFile.pdbFilename) {
-            fd.append("pdb_filename", analysisFile.pdbFilename);
-            console.log("[PSC] Appended pdb_filename:", analysisFile.pdbFilename);
+          if (file.pdbFilename) {
+            fd.append("pdb_filename", file.pdbFilename);
           }
-          console.log("[PSC] FormData has pdb_file:", fd.has("pdb_file"), "has pdb_filename:", fd.has("pdb_filename"));
+
+          console.log("[PSC] FormData:", {
+            mode: mode,
+            ligand_name: fd.get("ligand_name"),
+            skipLigand: fd.get("skipLigand"),
+            has_pdb_file: fd.has("pdb_file"),
+            has_pdb_filename: fd.has("pdb_filename")
+          });
 
           if (!fd.has("pdb_file") && !fd.has("pdb_filename")) {
             showInlineAnalysisError("PDB file state is incomplete. Please upload or fetch the file again.");
-            console.log("[PSC] ABORT: FormData missing pdb_file and pdb_filename");
+            console.log("[PSC] ABORT: FormData missing file");
             return;
           }
 
