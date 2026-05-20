@@ -1838,9 +1838,22 @@
         if (!names.length) {
           setLigandDetectionMessage(
             sourceLabel,
-            '<span style="color:#64748b;">No ligand detected in this structure.<br>You may manually enter a residue name.</span>'
+            '<span style="color:#64748b;">No ligand detected. Protein-only mode enabled — click Analyze Structure to proceed.</span>'
           );
+          // Auto-enable skip-ligand mode when no ligands detected
+          var skipInput = document.getElementById("skip-ligand-mode");
+          if (skipInput && !skipInput.checked) {
+            skipInput.checked = true;
+            updateSkipLigandModeUI();
+          }
           return;
+        }
+
+        // Ligands detected: auto-disable skip-ligand mode
+        var skipInput = document.getElementById("skip-ligand-mode");
+        if (skipInput && skipInput.checked) {
+          skipInput.checked = false;
+          updateSkipLigandModeUI();
         }
 
         if (names.length === 1) {
