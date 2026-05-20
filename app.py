@@ -2,6 +2,9 @@ import csv
 import io
 import json
 import os
+import re
+import urllib.error
+import urllib.request
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -62,7 +65,18 @@ def render_index(**overrides):
 def make_html(text):
     if not text:
         return ""
-    return str(escape(text)).replace("\n", "<br>")
+    escaped = str(escape(text))
+    lines = escaped.split("\n")
+    result = []
+    for line in lines:
+        if line.startswith("## "):
+            result.append(
+                '<div style="font-weight:700;font-size:15px;color:#60a5fa;'
+                'margin-top:16px;margin-bottom:6px;">' + line[3:] + "</div>"
+            )
+        else:
+            result.append(line)
+    return "<br>".join(result)
 
 
 def save_uploaded_pdb(file_storage, prefix=""):
@@ -108,7 +122,23 @@ def health():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    result = _run_analyze(request)
+    pdb_file = request.files.get("pdb_file")
+    ligand_name = request.form.get("ligand_name", "").strip().upper()
+
+    if not pdb_file or pdb_file.filename == "":
+        error_text = "Please upload a PDB file."
+        return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+    if not ligand_name:
+        error_text = "Please enter ligand name, for example: MK1 / CLR."
+        return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+    filename, pdb_path, error_text = save_uploaded_pdb(pdb_file)
+
+    if error_text:
+        return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+    result = _build_analyze_result(pdb_path, filename, ligand_name)
     if not result["success"]:
         return render_index(
             result_text=result["error_text"],
@@ -120,36 +150,49 @@ def analyze():
 
 @app.route("/analyze_async", methods=["POST"])
 def analyze_async():
-    result = _run_analyze(request)
-    return jsonify(result)
+    pdb_filename = request.form.get("pdb_filename", "").strip()
+    ligand_name = request.form.get("ligand_name", "").strip().upper()
 
+    if pdb_filename:
+        pdb_path = os.path.join(UPLOAD_FOLDER, secure_filename(pdb_filename))
+        if not os.path.isfile(pdb_path):
+            return jsonify({
+                "success": False,
+                "error_text": "Fetched PDB file no longer available. Please re-fetch.",
+                "ai_html": make_html("Fetched PDB file no longer available.")
+            })
+        result = _build_analyze_result(pdb_path, pdb_filename, ligand_name)
+        return jsonify(result)
 
-def _run_analyze(req):
-    pdb_file = req.files.get("pdb_file")
-    ligand_name = req.form.get("ligand_name", "").strip().upper()
-
+    pdb_file = request.files.get("pdb_file")
     if not pdb_file or pdb_file.filename == "":
-        return {
+        return jsonify({
             "success": False,
-            "error_text": "Please upload a PDB file.",
-            "ai_html": make_html("Please upload a PDB file.")
-        }
+            "error_text": "Please upload a PDB file or fetch from RCSB.",
+            "ai_html": make_html("Please upload a PDB file or fetch from RCSB.")
+        })
 
     if not ligand_name:
-        return {
+        return jsonify({
             "success": False,
             "error_text": "Please enter ligand name, for example: MK1 / CLR.",
             "ai_html": make_html("Please enter ligand name, for example: MK1 / CLR.")
-        }
+        })
 
     filename, pdb_path, error_text = save_uploaded_pdb(pdb_file)
 
     if error_text:
-        return {
+        return jsonify({
             "success": False,
             "error_text": error_text,
             "ai_html": make_html(error_text)
-        }
+        })
+
+    result = _build_analyze_result(pdb_path, filename, ligand_name)
+    return jsonify(result)
+
+
+def _build_analyze_result(pdb_path, filename, ligand_name):
 
     contact_residues, counts, primary_interpretation, interactions = analyze_ligand_pocket(
         pdb_path,
@@ -372,6 +415,61 @@ def mutation_scan():
         mutation_scan_result=mutation_result,
         mutation_scan_text=mutation_scan_text
     )
+
+
+def _fetch_pdb_from_rcsb(pdb_id):
+    pdb_id = pdb_id.strip().upper()
+    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ProteinStructureCopilot/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read().decode("utf-8", errors="ignore")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None, None, f"PDB ID {pdb_id} not found in RCSB."
+        return None, None, f"RCSB server error (HTTP {e.code})."
+    except Exception as e:
+        return None, None, f"Could not connect to RCSB: {str(e)}"
+
+    if not data.strip():
+        return None, None, f"Downloaded file for {pdb_id} is empty."
+
+    filename = f"RCSB_{pdb_id}_{uuid4().hex[:8]}.pdb"
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(data)
+
+    if not is_pdb_file(path):
+        os.remove(path)
+        return None, None, f"Downloaded file for {pdb_id} does not contain valid PDB data."
+
+    return filename, path, None
+
+
+@app.route("/fetch_pdb", methods=["POST"])
+def fetch_pdb():
+    pdb_id = request.form.get("pdb_id", "").strip().upper()
+    if not pdb_id:
+        return jsonify({"success": False, "error_text": "Please enter a PDB ID."})
+
+    if not re.fullmatch(r"[A-Za-z0-9]{4}", pdb_id):
+        return jsonify({"success": False, "error_text": "PDB ID must be exactly 4 characters (e.g. 1HSG)."})
+
+    filename, pdb_path, error_text = _fetch_pdb_from_rcsb(pdb_id)
+    if error_text:
+        return jsonify({"success": False, "error_text": error_text})
+
+    ligands = list_ligands(pdb_path)
+    ligand_names = sorted(set(lig["res_name"] for lig in ligands))
+
+    return jsonify({
+        "success": True,
+        "pdb_id": pdb_id,
+        "filename": filename,
+        "pdb_url": url_for("uploaded_file", filename=filename),
+        "ligands": ligand_names[:12],
+        "ligand_count": len(ligand_names)
+    })
 
 
 @app.route("/uploads/<path:filename>")

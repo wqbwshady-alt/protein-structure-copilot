@@ -10,20 +10,86 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
+    :root {
+      --bg-page: #f1f5f9;
+      --bg-card: white;
+      --bg-header-start: #0f172a;
+      --bg-header-end: #1e293b;
+      --bg-input: white;
+      --bg-drop: #f8fafc;
+      --bg-drop-hover: #f0f7ff;
+      --bg-drop-file: #f0fdf4;
+      --bg-drop-error: #fef2f2;
+      --bg-placeholder: #f8fafc;
+      --bg-section: #f9fafb;
+      --text-primary: #1e293b;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --text-helper: #94a3b8;
+      --text-header-sub: #94a3b8;
+      --border-default: #e2e8f0;
+      --border-input: #d1d5db;
+      --border-drop: #cbd5e1;
+      --border-drop-hover: #93c5fd;
+      --border-drop-file: #22c55e;
+      --border-drop-error: #ef4444;
+      --border-tab: #e2e8f0;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --primary-ring: rgba(37,99,235,0.12);
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.06);
+      --shadow-drop: 0 4px 16px rgba(37,99,235,0.08);
+      --shadow-drop-file: 0 0 0 4px rgba(34,197,94,0.08), 0 8px 32px rgba(34,197,94,0.10);
+    }
+
+    .dark {
+      --bg-page: #0a0f1a;
+      --bg-card: #111827;
+      --bg-header-start: #090e18;
+      --bg-header-end: #111827;
+      --bg-input: #1e293b;
+      --bg-drop: #1e293b;
+      --bg-drop-hover: #1e3a5f;
+      --bg-drop-file: #0a2e1a;
+      --bg-drop-error: #2e0a0a;
+      --bg-placeholder: #1e293b;
+      --bg-section: #1e293b;
+      --text-primary: #e2e8f0;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --text-helper: #64748b;
+      --text-header-sub: #94a3b8;
+      --border-default: #1e293b;
+      --border-input: #334155;
+      --border-drop: #334155;
+      --border-drop-hover: #3b82f6;
+      --border-drop-file: #22c55e;
+      --border-drop-error: #ef4444;
+      --border-tab: #1e293b;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --primary-light: #1e3a5f;
+      --primary-ring: rgba(59,130,246,0.2);
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
+      --shadow-drop: 0 4px 16px rgba(59,130,246,0.12);
+      --shadow-drop-file: 0 0 0 4px rgba(34,197,94,0.12), 0 8px 32px rgba(34,197,94,0.15);
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f1f5f9;
+      background: var(--bg-page);
       margin: 0;
       padding: 24px;
-      color: #1e293b;
+      color: var(--text-primary);
     }
 
     .container {
       max-width: 1300px;
       margin: auto;
-      background: white;
+      background: var(--bg-card);
       border-radius: 20px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      box-shadow: var(--shadow-card);
       overflow: hidden;
     }
 
@@ -42,8 +108,29 @@
 
     .header p {
       margin: 8px 0 0 0;
-      color: #94a3b8;
+      color: var(--text-header-sub);
       font-size: 15px;
+    }
+
+    .dark-mode-toggle {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .dark-mode-toggle:hover {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.25);
     }
 
     .content { padding: 32px 36px; }
@@ -52,7 +139,7 @@
     .tab-bar {
       display: flex;
       gap: 0;
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 2px solid var(--border-tab);
       margin-bottom: 28px;
     }
 
@@ -64,15 +151,15 @@
       margin-bottom: -2px;
       font-size: 15px;
       font-weight: 600;
-      color: #64748b;
+      color: var(--text-muted);
       cursor: pointer;
       transition: color 0.2s, border-color 0.2s;
     }
 
-    .tab-btn:hover { color: #1e293b; }
+    .tab-btn:hover { color: var(--text-primary); }
     .tab-btn.active {
-      color: #2563eb;
-      border-bottom-color: #2563eb;
+      color: var(--primary);
+      border-bottom-color: var(--primary);
     }
 
     .tab-panel { display: none; }
@@ -88,12 +175,12 @@
       font-weight: 600;
       font-size: 14px;
       margin-bottom: 6px;
-      color: #334155;
+      color: var(--text-secondary);
     }
 
     .form-group .helper {
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--text-helper);
       margin-top: 4px;
     }
 
@@ -101,50 +188,52 @@
       padding: 10px 14px;
       width: 100%;
       max-width: 400px;
-      border: 1.5px solid #d1d5db;
+      border: 1.5px solid var(--border-input);
       border-radius: 8px;
       font-size: 14px;
       transition: border-color 0.2s, box-shadow 0.2s;
+      background: var(--bg-input);
+      color: var(--text-primary);
     }
 
     .text-input:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-ring);
     }
 
     /* Drop zone */
     .drop-zone {
-      border: 2px dashed #cbd5e1;
+      border: 2px dashed var(--border-drop);
       border-radius: 16px;
       padding: 36px 24px;
       text-align: center;
       cursor: pointer;
       transition: border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s, padding 0.3s;
-      background: #f8fafc;
+      background: var(--bg-drop);
       position: relative;
     }
 
     .drop-zone:hover {
-      border-color: #93c5fd;
-      background: #f0f7ff;
+      border-color: var(--border-drop-hover);
+      background: var(--bg-drop-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(37,99,235,0.08);
+      box-shadow: var(--shadow-drop);
     }
 
     .drop-zone.drag-over {
-      border-color: #2563eb;
-      background: #eff6ff;
+      border-color: var(--primary);
+      background: var(--primary-light);
       transform: scale(1.01);
-      box-shadow: 0 0 0 8px rgba(37,99,235,0.06);
+      box-shadow: 0 0 0 8px var(--primary-ring);
       border-style: solid;
     }
 
     .drop-zone.has-file {
-      border-color: #22c55e;
+      border-color: var(--border-drop-file);
       border-style: solid;
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-      box-shadow: 0 0 0 4px rgba(34,197,94,0.08), 0 8px 32px rgba(34,197,94,0.10);
+      background: var(--bg-drop-file);
+      box-shadow: var(--shadow-drop-file);
       padding: 28px 28px;
       cursor: default;
       animation: fileIn 0.35s ease-out;
@@ -157,13 +246,13 @@
 
     .drop-zone.has-file:hover {
       transform: none;
-      box-shadow: 0 0 0 4px rgba(34,197,94,0.12), 0 8px 32px rgba(34,197,94,0.15);
+      box-shadow: var(--shadow-drop-file);
     }
 
     .drop-zone.has-error {
-      border-color: #ef4444;
+      border-color: var(--border-drop-error);
       border-style: solid;
-      background: #fef2f2;
+      background: var(--bg-drop-error);
     }
 
     .drop-zone-placeholder {
@@ -176,31 +265,44 @@
       justify-content: center;
       width: 56px;
       height: 56px;
-      background: #e0e7ff;
+      background: var(--primary-light);
       border-radius: 14px;
       margin-bottom: 14px;
       font-size: 28px;
       transition: background 0.25s, transform 0.25s;
+      filter: brightness(0.95);
+    }
+
+    .dark .drop-zone-icon {
+      filter: brightness(1.2);
     }
 
     .drop-zone:hover .drop-zone-icon {
-      background: #c7d2fe;
+      filter: brightness(0.9);
       transform: scale(1.05);
     }
 
+    .dark .drop-zone:hover .drop-zone-icon {
+      filter: brightness(1.3);
+    }
+
     .drop-zone.drag-over .drop-zone-icon {
-      background: #bfdbfe;
+      filter: brightness(0.88);
       transform: scale(1.08);
+    }
+
+    .dark .drop-zone.drag-over .drop-zone-icon {
+      filter: brightness(1.4);
     }
 
     .drop-zone-text {
       font-size: 15px;
-      color: #64748b;
+      color: var(--text-muted);
       line-height: 1.6;
     }
 
     .drop-zone-text strong {
-      color: #2563eb;
+      color: var(--primary);
       font-weight: 600;
     }
 
@@ -247,14 +349,14 @@
     .file-card-filename {
       font-size: 16px;
       font-weight: 700;
-      color: #1e293b;
+      color: var(--text-primary);
       word-break: break-all;
       line-height: 1.3;
     }
 
     .file-card-size {
       font-size: 13px;
-      color: #64748b;
+      color: var(--text-muted);
       margin-top: 2px;
     }
 
@@ -285,7 +387,7 @@
     .file-change-hint {
       display: none;
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--text-helper);
       margin-top: 14px;
       text-align: center;
     }
@@ -299,8 +401,8 @@
       top: 12px;
       right: 14px;
       background: none;
-      border: 1.5px solid #e2e8f0;
-      color: #94a3b8;
+      border: 1.5px solid var(--border-default);
+      color: var(--text-helper);
       padding: 5px 12px;
       border-radius: 8px;
       font-size: 12px;
@@ -410,11 +512,11 @@
     .viewer-box {
       width: 100%;
       height: 560px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border-default);
       border-radius: 12px;
       overflow: hidden;
       position: relative;
-      background: white;
+      background: var(--bg-card);
     }
 
     #viewer {
@@ -543,10 +645,10 @@
     .placeholder {
       margin-top: 24px;
       padding: 32px;
-      background: #f8fafc;
-      border: 2px dashed #e2e8f0;
+      background: var(--bg-placeholder);
+      border: 2px dashed var(--border-default);
       border-radius: 12px;
-      color: #64748b;
+      color: var(--text-muted);
       text-align: center;
       font-size: 15px;
     }
@@ -554,8 +656,8 @@
     .error-box {
       margin-top: 24px;
       padding: 16px 18px;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
+      background: var(--bg-drop-error);
+      border: 1px solid var(--border-drop-error);
       border-radius: 12px;
       color: #991b1b;
       font-weight: 600;
@@ -564,14 +666,14 @@
     .section-divider {
       margin-top: 50px;
       margin-bottom: 30px;
-      border-top: 2px solid #e5e7eb;
+      border-top: 2px solid var(--border-default);
     }
 
     /* Legend */
     .legend {
       margin-top: 10px;
       font-size: 13px;
-      color: #4b5563;
+      color: var(--text-muted);
       line-height: 1.8;
     }
 
@@ -873,8 +975,15 @@
 
     <!-- Header -->
     <div class="header">
-      <h1>Protein Structure Copilot</h1>
-      <p>Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1>Protein Structure Copilot</h1>
+          <p>Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
+        </div>
+        <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
+          <span class="dark-mode-icon">🌙</span>
+        </button>
+      </div>
     </div>
 
     <div class="content">
@@ -889,8 +998,25 @@
       <!-- Tab: Single Structure Analysis -->
       <div class="tab-panel active" id="tab-single">
         <form action="/analyze" method="post" enctype="multipart/form-data" class="analysis-form">
+          <input type="hidden" name="pdb_filename" id="pdb-filename-hidden" value="">
+
           <div class="form-group">
-            <label>PDB File</label>
+            <label>PDB ID (RCSB)</label>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="pdb-id-input" class="text-input"
+                     placeholder="e.g. 1HSG" style="max-width:160px;text-transform:uppercase;"
+                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
+              <button type="button" id="fetch-pdb-btn" class="btn-outline"
+                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
+                Fetch from RCSB
+              </button>
+              <span id="fetch-status" style="font-size:13px;"></span>
+            </div>
+            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
+          </div>
+
+          <div class="form-group">
+            <label>Or Upload PDB File</label>
             <div class="drop-zone" id="drop-zone-analyze">
               <button type="button" class="remove-file-btn">✕ Remove</button>
               <div class="drop-zone-placeholder">
@@ -1661,6 +1787,73 @@
       document.querySelectorAll(".drop-zone").forEach(function(zone) {
         setupDropZone(zone);
       });
+
+      // RCSB PDB fetch
+      var fetchBtn = document.getElementById("fetch-pdb-btn");
+      var pdbIdInput = document.getElementById("pdb-id-input");
+      var fetchStatus = document.getElementById("fetch-status");
+      var analyzeDropZone = document.getElementById("drop-zone-analyze");
+
+      if (fetchBtn && pdbIdInput && analyzeDropZone) {
+        fetchBtn.addEventListener("click", function() {
+          var pdbId = pdbIdInput.value.trim().toUpperCase();
+          if (!pdbId || pdbId.length !== 4) {
+            fetchStatus.innerHTML = '<span style="color:#ef4444;">Enter a valid 4-character PDB ID</span>';
+            return;
+          }
+          fetchBtn.disabled = true;
+          fetchStatus.innerHTML = '<span style="color:#3b82f6;">Fetching from RCSB...</span>';
+
+          var formData = new FormData();
+          formData.append("pdb_id", pdbId);
+
+          fetch("/fetch_pdb", { method: "POST", body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              fetchBtn.disabled = false;
+              if (!data.success) {
+                fetchStatus.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
+                return;
+              }
+
+              fetchStatus.innerHTML = '<span style="color:#22c55e;">✓ Downloaded ' + pdbId + '.pdb</span>';
+
+              // Auto-populate drop zone
+              var fileInput = analyzeDropZone.querySelector('input[type="file"]');
+              var fileNameDisplay = analyzeDropZone.querySelector(".file-card-filename");
+              var fileSizeDisplay = analyzeDropZone.querySelector(".file-card-size");
+
+              analyzeDropZone.classList.remove("has-error");
+              analyzeDropZone.classList.add("has-file");
+              fileNameDisplay.textContent = pdbId + ".pdb";
+              fileSizeDisplay.textContent = "Fetched from RCSB PDB";
+
+              // Store the filename for the analyze flow
+              var hiddenInput = document.getElementById("pdb-filename-hidden");
+              if (hiddenInput) hiddenInput.value = data.filename;
+
+              if (data.ligands && data.ligands.length > 0) {
+                var ligandInput = document.getElementById("ligand-analyze");
+                var suggestions = data.ligands.slice(0, 6).join(", ");
+                fetchStatus.innerHTML += ' <span style="color:#64748b;">Ligands: ' + suggestions + '</span>';
+                if (ligandInput && !ligandInput.value.trim() && data.ligands.length === 1) {
+                  ligandInput.value = data.ligands[0];
+                }
+              }
+            })
+            .catch(function(err) {
+              fetchBtn.disabled = false;
+              fetchStatus.innerHTML = '<span style="color:#ef4444;">Network error: ' + (err.message || "unknown") + '</span>';
+            });
+        });
+
+        pdbIdInput.addEventListener("keydown", function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            fetchBtn.click();
+          }
+        });
+      }
     })();
   </script>
 
@@ -2177,6 +2370,48 @@
           overlay.classList.add("active");
         });
       });
+    })();
+  </script>
+
+  <!-- Dark mode toggle -->
+  <script>
+    (function() {
+      var html = document.documentElement;
+      var toggle = document.getElementById("dark-mode-toggle");
+      var icon = toggle ? toggle.querySelector(".dark-mode-icon") : null;
+      var STORAGE_KEY = "psc-dark-mode";
+
+      function setDark(enabled) {
+        if (enabled) {
+          html.classList.add("dark");
+          if (icon) icon.textContent = "☀️";
+        } else {
+          html.classList.remove("dark");
+          if (icon) icon.textContent = "🌙";
+        }
+        try { localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0"); } catch(e) {}
+      }
+
+      function isDark() {
+        return html.classList.contains("dark");
+      }
+
+      // Initialize: check localStorage first, then system preference
+      var saved = null;
+      try { saved = localStorage.getItem(STORAGE_KEY); } catch(e) {}
+      if (saved === "1") {
+        setDark(true);
+      } else if (saved === "0") {
+        setDark(false);
+      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setDark(true);
+      }
+
+      if (toggle) {
+        toggle.addEventListener("click", function() {
+          setDark(!isDark());
+        });
+      }
     })();
   </script>
 </body>
