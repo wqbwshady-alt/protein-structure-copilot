@@ -2279,6 +2279,72 @@
           return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
+        if (data.analysis_mode === "protein_only") {
+          var summary = data.protein_summary || {};
+          var counts = summary.residue_type_counts || {};
+          var chains = summary.chains || [];
+          var chainRows = chains.length ? chains.map(function(chain) {
+            return '<tr>' +
+              '<td>' + esc(chain.chain_id) + '</td>' +
+              '<td>' + (chain.residue_count || 0) + '</td>' +
+              '<td>' + (chain.atom_count || 0) + '</td>' +
+              '<td>' + (chain.hydrophobic || 0) + '</td>' +
+              '<td>' + ((chain.positive || 0) + (chain.negative || 0)) + '</td>' +
+            '</tr>';
+          }).join("") : '<tr><td colspan="5">No protein chains detected.</td></tr>';
+
+          return '<div class="main-area results-container fade-in">' +
+            '<div>' +
+              '<h2>3D Structure Viewer</h2>' +
+              '<div class="viewer-box"><div id="viewer"></div></div>' +
+              '<div class="viewer-tools">' +
+                '<button class="tool-btn" id="reset-view-btn">Reset View</button>' +
+              '</div>' +
+              '<div class="legend">' +
+                '<div><span class="yellow-dot"></span> Protein-only analysis mode</div>' +
+              '</div>' +
+            '</div>' +
+            '<div>' +
+              '<h2>Analysis Result</h2>' +
+              '<div class="ai-dashboard">' +
+                '<div class="ai-dashboard-title">Protein-only structural overview</div>' +
+                '<div class="ai-card">' +
+                  '<h3>Structure Summary</h3>' +
+                  '<p>' + (summary.chain_count || 0) + ' chain(s), ' +
+                    (summary.residue_count || 0) + ' protein residues, ' +
+                    (summary.atom_count || 0) + ' protein atoms.</p>' +
+                '</div>' +
+                '<div class="ai-card">' +
+                  '<h3>Residue Chemistry</h3>' +
+                  '<p>Hydrophobic: ' + (counts.hydrophobic || 0) +
+                    ' · Polar: ' + (counts.polar || 0) +
+                    ' · Charged: ' + ((counts.positive || 0) + (counts.negative || 0)) +
+                    ' · Other: ' + (counts.other || 0) + '</p>' +
+                '</div>' +
+                '<div class="ai-card">' +
+                  '<h3>Secondary Structure</h3>' +
+                  '<p>' + esc((summary.secondary_structure || {}).note || "Secondary structure statistics are not calculated yet.") + '</p>' +
+                '</div>' +
+                '<div class="ai-card">' +
+                  '<h3>Chain Information</h3>' +
+                  '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                    '<thead><tr><th align="left">Chain</th><th align="left">Residues</th><th align="left">Atoms</th><th align="left">Hydrophobic</th><th align="left">Charged</th></tr></thead>' +
+                    '<tbody>' + chainRows + '</tbody>' +
+                  '</table>' +
+                '</div>' +
+                '<div class="ai-card">' +
+                  '<h3>Mode</h3>' +
+                  '<p>Ligand pocket contact analysis was skipped.</p>' +
+                '</div>' +
+                '<details>' +
+                  '<summary>View full raw report</summary>' +
+                  '<div class="raw-report">' + esc(data.result_text) + '</div>' +
+                '</details>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }
+
         var downloadLinks = "";
         if (data.report_download_url) {
           downloadLinks += '<a href="' + data.report_download_url + '" class="download-btn">Download Report (TXT)</a>';
@@ -2364,6 +2430,28 @@
         if (!viewerEl) return;
 
         window._analysisData = data;
+
+        if (data.analysis_mode === "protein_only") {
+          fetch(data.pdb_url)
+            .then(function(response) { return response.text(); })
+            .then(function(pdbData) {
+              var proteinViewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
+              proteinViewer.addModel(pdbData, "pdb");
+              proteinViewer.setStyle({}, { cartoon: { color: "spectrum" } });
+              proteinViewer.zoomTo();
+              proteinViewer.render();
+              proteinViewer.resize();
+
+              var resetBtn = document.getElementById("reset-view-btn");
+              if (resetBtn) {
+                resetBtn.onclick = function() {
+                  proteinViewer.zoomTo();
+                  proteinViewer.render();
+                };
+              }
+            });
+          return;
+        }
 
         var scriptEl = document.getElementById("interaction-data");
         if (!scriptEl) {
@@ -2800,13 +2888,7 @@
             return;
           }
 
-          if (!ligandName && skipLigandMode) {
-            console.log("[PSC] Running protein-only skip ligand mode");
-            runProteinOnlyMode(analysisFile, btn);
-            return;
-          }
-
-          if (!ligandName) {
+          if (!ligandName && !skipLigandMode) {
             showInlineAnalysisInfo("No ligand detected in this structure.<br>You may manually enter a residue name.");
             console.log("[PSC] ABORT: no ligand name");
             return;
@@ -2814,7 +2896,10 @@
 
           // Build FormData with unified analysisFile before changing UI state.
           var fd = new FormData();
-          fd.append("ligand_name", ligandName);
+          fd.append("ligand_name", skipLigandMode ? "" : ligandName);
+          if (skipLigandMode) {
+            fd.append("skipLigand", "true");
+          }
           if (analysisFile.fileObject) {
             fd.append("pdb_file", analysisFile.fileObject, analysisFile.name);
             console.log("[PSC] Appended pdb_file:", analysisFile.name, "size:", analysisFile.fileObject.size);

@@ -126,6 +126,40 @@ class AppTest(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertIn(f"/uploads/{fetched_name}", data["pdb_url"])
 
+    def test_analyze_json_skip_ligand_runs_protein_only_analysis(self):
+        pdb_text = (
+            "ATOM      1  N   THR A   1      17.047  14.099   3.625  1.00 13.79           N\n"
+            "ATOM      2  CA  THR A   1      16.967  12.784   4.338  1.00 10.80           C\n"
+            "ATOM      3  C   ALA A   2      15.685  12.755   5.133  1.00 10.00           C\n"
+            "ATOM      4  CA  ASP B   1      12.000  11.000   7.000  1.00 10.00           C\n"
+            "END\n"
+        )
+
+        with tempfile.TemporaryDirectory() as upload_dir:
+            with patch.object(app_module, "UPLOAD_FOLDER", upload_dir):
+                response = self.client.post(
+                    "/analyze",
+                    data={
+                        "skipLigand": "true",
+                        "ligand_name": "",
+                        "pdb_file": (BytesIO(pdb_text.encode("utf-8")), "protein_only.pdb")
+                    },
+                    content_type="multipart/form-data",
+                    headers={
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["analysis_mode"], "protein_only")
+        self.assertEqual(data["result_title"], "Protein-only structural overview")
+        self.assertEqual(data["protein_summary"]["chain_count"], 2)
+        self.assertEqual(data["protein_summary"]["residue_count"], 3)
+        self.assertIn("pdb_url", data)
+
     def test_mutation_scan_route(self):
         pdb_path = os.path.join(ROOT_DIR, "data", "1HSG.pdb")
 

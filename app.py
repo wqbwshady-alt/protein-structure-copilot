@@ -14,10 +14,12 @@ from werkzeug.utils import secure_filename
 
 from analysis_core import (
     analyze_ligand_pocket,
+    classify_residue,
     format_ligand_suggestions,
     get_hotspot_residues,
     is_pdb_file,
     list_ligands,
+    parse_pdb_atoms,
     residue_keys_to_json,
 )
 from reports import build_comparison_report, build_report, generate_pymol_script
@@ -129,6 +131,7 @@ def analyze():
     pdb_filename = request.form.get("pdb_filename", "").strip()
     pdb_file = request.files.get("pdb_file")
     ligand_name = request.form.get("ligand_name", "").strip().upper()
+    skip_ligand = request.form.get("skipLigand", "").strip().lower() in {"1", "true", "yes", "on"}
 
     if pdb_filename:
         pdb_path = os.path.join(UPLOAD_FOLDER, secure_filename(pdb_filename))
@@ -154,7 +157,7 @@ def analyze():
                 })
             return render_index(result_text=error_text, ai_html=make_html(error_text))
 
-        if not ligand_name:
+        if not ligand_name and not skip_ligand:
             error_text = "Please enter ligand name, for example: MK1 / CLR."
             if wants_json:
                 return jsonify({
@@ -174,6 +177,12 @@ def analyze():
                     "ai_html": make_html(error_text)
                 })
             return render_index(result_text=error_text, ai_html=make_html(error_text))
+
+    if skip_ligand:
+        result = _build_protein_only_result(pdb_path, pdb_filename)
+        if wants_json:
+            return jsonify(result)
+        return render_index(**result)
 
     if not ligand_name:
         error_text = "Please enter ligand name, for example: MK1 / CLR."
@@ -201,6 +210,7 @@ def analyze():
 def analyze_async():
     pdb_filename = request.form.get("pdb_filename", "").strip()
     ligand_name = request.form.get("ligand_name", "").strip().upper()
+    skip_ligand = request.form.get("skipLigand", "").strip().lower() in {"1", "true", "yes", "on"}
 
     if pdb_filename:
         pdb_path = os.path.join(UPLOAD_FOLDER, secure_filename(pdb_filename))
@@ -210,6 +220,8 @@ def analyze_async():
                 "error_text": "Fetched PDB file no longer available. Please re-fetch.",
                 "ai_html": make_html("Fetched PDB file no longer available.")
             })
+        if skip_ligand:
+            return jsonify(_build_protein_only_result(pdb_path, pdb_filename))
         result = _build_analyze_result(pdb_path, pdb_filename, ligand_name)
         return jsonify(result)
 
@@ -221,7 +233,7 @@ def analyze_async():
             "ai_html": make_html("Please upload a PDB file or fetch from RCSB.")
         })
 
-    if not ligand_name:
+    if not ligand_name and not skip_ligand:
         return jsonify({
             "success": False,
             "error_text": "Please enter ligand name, for example: MK1 / CLR.",
@@ -237,8 +249,128 @@ def analyze_async():
             "ai_html": make_html(error_text)
         })
 
-    result = _build_analyze_result(pdb_path, filename, ligand_name)
+    if skip_ligand:
+        result = _build_protein_only_result(pdb_path, filename)
+    else:
+        result = _build_analyze_result(pdb_path, filename, ligand_name)
     return jsonify(result)
+
+
+def _build_protein_only_result(pdb_path, filename):
+    atoms = parse_pdb_atoms(pdb_path)
+    protein_atoms = [atom for atom in atoms if atom["atom_type"] == "ATOM"]
+    residue_map = {}
+    chain_map = {}
+
+    for atom in protein_atoms:
+        chain_id = atom["chain_id"] or "(blank)"
+        residue_key = (chain_id, atom["res_id"], atom["res_name"])
+        residue_map[residue_key] = atom["res_name"]
+
+        chain_data = chain_map.setdefault(chain_id, {
+            "chain_id": chain_id,
+            "atom_count": 0,
+            "residue_keys": set(),
+            "hydrophobic": 0,
+            "polar": 0,
+            "positive": 0,
+            "negative": 0,
+            "other": 0
+        })
+        chain_data["atom_count"] += 1
+        chain_data["residue_keys"].add(residue_key)
+
+    residue_type_counts = {
+        "hydrophobic": 0,
+        "polar": 0,
+        "positive": 0,
+        "negative": 0,
+        "other": 0
+    }
+
+    for residue_key, res_name in residue_map.items():
+        residue_type = classify_residue(res_name)
+        if residue_type not in residue_type_counts:
+            residue_type = "other"
+        residue_type_counts[residue_type] += 1
+
+        chain_id = residue_key[0]
+        chain_map[chain_id][residue_type] += 1
+
+    chains = []
+    for chain_id in sorted(chain_map):
+        chain_data = chain_map[chain_id]
+        chains.append({
+            "chain_id": chain_id,
+            "atom_count": chain_data["atom_count"],
+            "residue_count": len(chain_data["residue_keys"]),
+            "hydrophobic": chain_data["hydrophobic"],
+            "polar": chain_data["polar"],
+            "positive": chain_data["positive"],
+            "negative": chain_data["negative"],
+            "other": chain_data["other"]
+        })
+
+    ligand_candidates = sorted(set(ligand["res_name"] for ligand in list_ligands(pdb_path)))
+    summary = {
+        "atom_count": len(protein_atoms),
+        "residue_count": len(residue_map),
+        "chain_count": len(chains),
+        "hetatm_count": len([atom for atom in atoms if atom["atom_type"] == "HETATM"]),
+        "chains": chains,
+        "residue_type_counts": residue_type_counts,
+        "ligand_candidates": ligand_candidates,
+        "secondary_structure": {
+            "status": "not_calculated",
+            "note": "Secondary structure statistics are reserved for a future DSSP-style analysis step."
+        }
+    }
+
+    result_text = (
+        "Protein-only structural overview\n\n"
+        f"Structure: {filename}\n"
+        f"Chains: {summary['chain_count']}\n"
+        f"Protein residues: {summary['residue_count']}\n"
+        f"Protein atoms: {summary['atom_count']}\n\n"
+        "Residue composition:\n"
+        f"- Hydrophobic: {residue_type_counts['hydrophobic']}\n"
+        f"- Polar: {residue_type_counts['polar']}\n"
+        f"- Positively charged: {residue_type_counts['positive']}\n"
+        f"- Negatively charged: {residue_type_counts['negative']}\n"
+        f"- Other: {residue_type_counts['other']}\n"
+    )
+
+    ai_text = (
+        "Protein-only analysis mode. Ligand pocket contact analysis was skipped. "
+        "This overview summarizes chain counts, residue counts, broad residue chemistry, "
+        "and provides a 3D structure view for protein-only structures."
+    )
+
+    report_filename = write_result_file(
+        f"protein_only_report_{uuid4().hex}.txt",
+        result_text
+    )
+
+    json_filename = write_result_file(
+        f"protein_only_data_{uuid4().hex}.json",
+        json.dumps(summary, indent=2)
+    )
+
+    return {
+        "success": True,
+        "analysis_mode": "protein_only",
+        "result_title": "Protein-only structural overview",
+        "result_text": result_text,
+        "ai_html": make_html(ai_text),
+        "pdb_url": url_for("uploaded_file", filename=filename),
+        "report_download_url": url_for("download_report", filename=report_filename),
+        "json_download_url": url_for("download_report_json", filename=json_filename),
+        "protein_summary": summary,
+        "interaction_data": [],
+        "hotspot_residues": [],
+        "lost_residues": [],
+        "gained_residues": []
+    }
 
 
 def _build_analyze_result(pdb_path, filename, ligand_name):
