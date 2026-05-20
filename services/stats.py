@@ -8,9 +8,16 @@ from uuid import uuid4
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 DEFAULT_STATS_FILE = os.path.join(ROOT_DIR, "stats.json")
-DEFAULT_SEED_STATS_FILE = os.path.join(ROOT_DIR, "data", "stats_seed.json")
 MAX_RECENT = 20
 _lock = threading.Lock()
+LEGACY_LOCAL_DEV_TOTAL = 19
+LEGACY_LOCAL_DEV_PDB_NAMES = {
+    "MUTSCAN_42cbe176c1ff4ad7b88bbe1378b0438d_1HSG.pdb",
+    "RCSB_1HSG_test.pdb",
+    "RCSB_1HSG_test.pdb vs RCSB_1HSG_V82A_test.pdb",
+    "c0d96e1d82b4421094e717703556c2b6_1HSG.pdb",
+    "9c66e9093b6c420c8fc99d10c8ab5b66_protein_only.pdb",
+}
 
 
 def _stats_file_path():
@@ -27,10 +34,6 @@ def _stats_file_path():
         return os.path.join(render_disk, "protein_structure_copilot_stats.json")
 
     return DEFAULT_STATS_FILE
-
-
-def _seed_stats_file_path():
-    return os.getenv("PSC_STATS_SEED_FILE", DEFAULT_SEED_STATS_FILE)
 
 
 def _defaults():
@@ -93,10 +96,35 @@ def _normalize_stats(data):
     if not isinstance(recent, list):
         recent = []
 
-    return {
+    normalized = {
         "total_analyses": int(data.get("total_analyses") or 0),
         "last_updated": data.get("last_updated"),
         "recent_analyses": [_normalize_entry(item) for item in recent[:MAX_RECENT] if isinstance(item, dict)],
+    }
+    return _remove_legacy_local_dev_artifacts(normalized)
+
+
+def _is_legacy_local_dev_entry(entry):
+    timestamp = str(entry.get("timestamp") or "")
+    pdb_name = entry.get("pdb_name") or ""
+    return timestamp.startswith("2026-05-20T13:28:") and pdb_name in LEGACY_LOCAL_DEV_PDB_NAMES
+
+
+def _remove_legacy_local_dev_artifacts(stats):
+    legacy_count = sum(1 for entry in stats["recent_analyses"] if _is_legacy_local_dev_entry(entry))
+    if legacy_count == 0:
+        return stats
+
+    cleaned_recent = [
+        entry for entry in stats["recent_analyses"]
+        if not _is_legacy_local_dev_entry(entry)
+    ][:MAX_RECENT]
+
+    cleaned_total = max(0, stats["total_analyses"] - LEGACY_LOCAL_DEV_TOTAL)
+    return {
+        "total_analyses": cleaned_total,
+        "last_updated": cleaned_recent[0]["timestamp"] if cleaned_recent else None,
+        "recent_analyses": cleaned_recent,
     }
 
 
@@ -110,47 +138,8 @@ def _read_file(path):
         return _defaults()
 
 
-def _entry_key(entry):
-    return (
-        entry.get("timestamp"),
-        entry.get("analysis_type"),
-        entry.get("pdb_id"),
-        entry.get("pdb_name"),
-        entry.get("ligand_name"),
-        entry.get("mutation"),
-        entry.get("mode"),
-    )
-
-
-def _merge_seed(stats):
-    seed = _read_file(_seed_stats_file_path())
-    if seed["total_analyses"] <= 0 and not seed["recent_analyses"]:
-        return stats
-
-    merged = {
-        "total_analyses": max(stats["total_analyses"], seed["total_analyses"]),
-        "last_updated": stats["last_updated"] or seed["last_updated"],
-        "recent_analyses": [],
-    }
-
-    if stats["last_updated"] and seed["last_updated"]:
-        merged["last_updated"] = max(stats["last_updated"], seed["last_updated"])
-
-    seen = set()
-    for entry in stats["recent_analyses"] + seed["recent_analyses"]:
-        key = _entry_key(entry)
-        if key in seen:
-            continue
-        seen.add(key)
-        merged["recent_analyses"].append(entry)
-        if len(merged["recent_analyses"]) >= MAX_RECENT:
-            break
-
-    return merged
-
-
 def _read():
-    return _merge_seed(_read_file(_stats_file_path()))
+    return _read_file(_stats_file_path())
 
 
 def _write(stats):
@@ -167,8 +156,7 @@ def _write(stats):
 def ensure_stats_store():
     with _lock:
         stats = _read()
-        if not os.path.exists(_stats_file_path()):
-            _write(stats)
+        _write(stats)
         return stats
 
 

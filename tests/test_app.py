@@ -18,10 +18,7 @@ class AppTest(unittest.TestCase):
         self.addCleanup(self.stats_dir.cleanup)
         self.stats_env = patch.dict(
             os.environ,
-            {
-                "PSC_STATS_FILE": os.path.join(self.stats_dir.name, "stats.json"),
-                "PSC_STATS_SEED_FILE": os.path.join(self.stats_dir.name, "missing_seed.json"),
-            }
+            {"PSC_STATS_FILE": os.path.join(self.stats_dir.name, "stats.json")}
         )
         self.stats_env.start()
         self.addCleanup(self.stats_env.stop)

@@ -12,11 +12,7 @@ class StatsServiceTest(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmpdir.cleanup)
         self.stats_path = os.path.join(self.tmpdir.name, "stats.json")
-        self.seed_path = os.path.join(self.tmpdir.name, "seed.json")
-        self.env = patch.dict(os.environ, {
-            "PSC_STATS_FILE": self.stats_path,
-            "PSC_STATS_SEED_FILE": self.seed_path,
-        })
+        self.env = patch.dict(os.environ, {"PSC_STATS_FILE": self.stats_path})
         self.env.start()
         self.addCleanup(self.env.stop)
 
@@ -57,38 +53,25 @@ class StatsServiceTest(unittest.TestCase):
         self.assertEqual(len(get_recent()), 20)
         self.assertEqual(get_recent()[0]["pdb_name"], "local_24.pdb")
 
-    def test_missing_runtime_store_starts_from_seed(self):
-        with open(self.seed_path, "w", encoding="utf-8") as f:
+    def test_legacy_local_dev_records_are_removed(self):
+        with open(self.stats_path, "w", encoding="utf-8") as f:
             json.dump({
                 "total_analyses": 19,
-                "last_updated": "2026-05-20T13:28:37+00:00",
+                "last_updated": "2026-05-20T13:28:37.625020+00:00",
                 "recent_analyses": [{
-                    "timestamp": "2026-05-20T13:28:37+00:00",
-                    "analysis_type": "single",
-                    "pdb_id": "7VV4",
-                    "pdb_name": "RCSB_7VV4_seed.pdb",
-                    "ligand_name": "CLR",
-                    "source": "rcsb",
-                    "mode": "ligand",
+                    "timestamp": "2026-05-20T13:28:37.625020+00:00",
+                    "analysis_type": "mutation",
+                    "pdb_id": "1HSG",
+                    "pdb_name": "MUTSCAN_42cbe176c1ff4ad7b88bbe1378b0438d_1HSG.pdb",
+                    "ligand_name": "MK1",
+                    "mutation": "D25A",
+                    "source": "local",
+                    "mode": "mutation",
                 }],
             }, f)
 
-        ensure_stats_store()
-
-        self.assertEqual(get_stats()["total_analyses"], 19)
-        self.assertEqual(get_recent()[0]["pdb_id"], "7VV4")
-
-        record_analysis({
-            "analysis_type": "mutation",
-            "pdb_name": "RCSB_1TSR_test.pdb",
-            "ligand_name": "ZN",
-            "mutation": "R273H",
-            "source": "rcsb",
-            "mode": "mutation",
-        })
-
-        self.assertEqual(get_stats()["total_analyses"], 20)
-        self.assertEqual(get_recent()[0]["analysis_type"], "mutation")
+        self.assertEqual(get_stats()["total_analyses"], 0)
+        self.assertEqual(get_recent(), [])
 
 
 if __name__ == "__main__":
