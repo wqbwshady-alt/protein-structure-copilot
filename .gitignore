@@ -3,4 +3,5 @@ __pycache__/
 .env
 uploads/
 results/
+stats.json
 .DS_Store

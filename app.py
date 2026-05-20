@@ -26,6 +26,7 @@ from analysis_core import (
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from services.mutation_scan import MutationScanError, analyze_mutation_scan
+from services.stats import get_stats, increment_analysis, increment_comparison, increment_mutation_scan
 
 
 load_dotenv()
@@ -184,6 +185,11 @@ def index():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/stats", methods=["GET"])
+def stats():
+    return jsonify(get_stats())
 
 
 @app.route("/analyze", methods=["POST"])
@@ -420,6 +426,8 @@ def _build_protein_only_result(pdb_path, filename):
         json.dumps(summary, indent=2)
     )
 
+    increment_analysis()
+
     return {
         "success": True,
         "analysis_mode": "protein_only",
@@ -497,6 +505,8 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         f"pocket_data_{uuid4().hex}.csv",
         csv_buf.getvalue()
     )
+
+    increment_analysis()
 
     return {
         "success": True,
@@ -615,6 +625,8 @@ def compare():
         comparison_text
     )
 
+    increment_comparison()
+
     result = {
         "success": True,
         "analysis_mode": "comparison",
@@ -692,6 +704,8 @@ def mutation_scan():
     )
 
     mutation_scan_text = build_mutation_scan_report(mutation_result)
+
+    increment_mutation_scan()
 
     result = {
         "success": True,
