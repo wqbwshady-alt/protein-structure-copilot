@@ -1083,7 +1083,7 @@
 
           <div id="analysis-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
 
-          <button type="submit" class="btn">
+          <button type="submit" class="btn" id="analyze-structure-btn" onclick="console.log('ANALYZE BUTTON CLICKED');console.log('  button disabled:',this.disabled);console.log('  form id:',this.closest('form')?.id);console.log('  ligand:',document.getElementById('ligand-analyze')?.value);console.log('  analysisFile:',window.PSCAnalysisFile);console.log('  analysisMode:',(function(){var s=document.getElementById('skip-ligand-mode');return s&&s.checked?'protein_only':'ligand'})());">
             <span class="btn-label">Analyze Structure</span>
           </button>
         </form>
@@ -2778,6 +2778,7 @@
       if (singleForm) {
         singleForm.setAttribute("novalidate", "novalidate");
         singleForm.addEventListener("submit", function(e) {
+          console.log("handleAnalyze called");
           e.preventDefault();
           console.log("[PSC] Form submit intercepted");
 
@@ -2874,6 +2875,16 @@
           progressOverlay.classList.add("active");
           setStage(0, "active");
           advanceStage();
+
+          console.log("sending analyze request", {
+            analysisMode: mode,
+            ligandName: fd.get("ligand_name"),
+            skipLigand: fd.get("skipLigand"),
+            hasFileObject: !!file.fileObject,
+            hasPdbFilename: !!file.pdbFilename,
+            analysisFile: {name: file.name, size: file.size, source: file.source, ready: file.ready},
+            canAnalyze: file.ready && (mode === "protein_only" || !!fd.get("ligand_name"))
+          });
 
           fetch("/analyze", {
             method: "POST",
