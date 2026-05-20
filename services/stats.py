@@ -10,6 +10,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 DEFAULT_STATS_FILE = os.path.join(ROOT_DIR, "stats.json")
 MAX_RECENT = 20
 _lock = threading.Lock()
+_db_schema_ready = False
 LEGACY_LOCAL_DEV_TOTAL = 19
 LEGACY_LOCAL_DEV_PDB_NAMES = {
     "MUTSCAN_42cbe176c1ff4ad7b88bbe1378b0438d_1HSG.pdb",
@@ -34,6 +35,19 @@ def _stats_file_path():
         return os.path.join(render_disk, "protein_structure_copilot_stats.json")
 
     return DEFAULT_STATS_FILE
+
+
+def _database_url():
+    return os.getenv("PSC_DATABASE_URL") or os.getenv("DATABASE_URL")
+
+
+def _use_database():
+    backend = os.getenv("PSC_STATS_BACKEND", "").strip().lower()
+    if backend == "file":
+        return False
+    if backend in {"postgres", "postgresql"}:
+        return bool(_database_url())
+    return bool(_database_url()) and not os.getenv("PSC_STATS_FILE")
 
 
 def _defaults():
@@ -144,6 +158,168 @@ def _read_file(path):
         return _defaults()
 
 
+def _connect_db():
+    import psycopg
+
+    return psycopg.connect(_database_url())
+
+
+def _ensure_database_store():
+    global _db_schema_ready
+    if _db_schema_ready:
+        return
+
+    with _connect_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS usage_stats (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    total_analyses INTEGER NOT NULL DEFAULT 0,
+                    last_updated TIMESTAMPTZ
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS recent_analyses (
+                    id BIGSERIAL PRIMARY KEY,
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    analysis_type TEXT NOT NULL,
+                    pdb_id TEXT NOT NULL DEFAULT '',
+                    pdb_name TEXT NOT NULL DEFAULT '',
+                    ligand_name TEXT NOT NULL DEFAULT '',
+                    mutation TEXT NOT NULL DEFAULT '',
+                    source TEXT NOT NULL DEFAULT 'local',
+                    mode TEXT NOT NULL DEFAULT 'ligand',
+                    wt_pdb_id TEXT NOT NULL DEFAULT '',
+                    mutant_pdb_id TEXT NOT NULL DEFAULT ''
+                )
+            """)
+            cur.execute("""
+                INSERT INTO usage_stats (id, total_analyses, last_updated)
+                VALUES (1, 0, NULL)
+                ON CONFLICT (id) DO NOTHING
+            """)
+    _db_schema_ready = True
+
+
+def _isoformat(value):
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _entry_from_db_row(row):
+    return _normalize_entry({
+        "timestamp": _isoformat(row["timestamp"]),
+        "analysis_type": row["analysis_type"],
+        "pdb_id": row["pdb_id"],
+        "pdb_name": row["pdb_name"],
+        "ligand_name": row["ligand_name"],
+        "mutation": row["mutation"],
+        "source": row["source"],
+        "mode": row["mode"],
+        "wt_pdb_id": row["wt_pdb_id"],
+        "mutant_pdb_id": row["mutant_pdb_id"],
+    })
+
+
+def _get_database_stats():
+    from psycopg.rows import dict_row
+
+    _ensure_database_store()
+    with _connect_db() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT total_analyses, last_updated
+                FROM usage_stats
+                WHERE id = 1
+            """)
+            row = cur.fetchone()
+
+    return {
+        "total_analyses": int(row["total_analyses"] or 0),
+        "last_updated": _isoformat(row["last_updated"]),
+    }
+
+
+def _get_database_recent():
+    from psycopg.rows import dict_row
+
+    _ensure_database_store()
+    with _connect_db() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT timestamp, analysis_type, pdb_id, pdb_name, ligand_name,
+                       mutation, source, mode, wt_pdb_id, mutant_pdb_id
+                FROM recent_analyses
+                ORDER BY timestamp DESC, id DESC
+                LIMIT %s
+            """, (MAX_RECENT,))
+            rows = cur.fetchall()
+
+    return [_entry_from_db_row(row) for row in rows]
+
+
+def _record_database_analysis(metadata):
+    _ensure_database_store()
+    now = datetime.now(timezone.utc)
+    entry = _normalize_entry({
+        "timestamp": now.isoformat(),
+        "analysis_type": metadata.get("analysis_type") or metadata.get("type") or "single",
+        "pdb_id": metadata.get("pdb_id"),
+        "pdb_name": metadata.get("pdb_name", ""),
+        "ligand_name": metadata.get("ligand_name", ""),
+        "mutation": metadata.get("mutation", ""),
+        "source": metadata.get("source", "local"),
+        "mode": metadata.get("mode", "ligand"),
+        "wt_pdb_id": metadata.get("wt_pdb_id"),
+        "mutant_pdb_id": metadata.get("mutant_pdb_id"),
+    })
+
+    with _connect_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE usage_stats
+                SET total_analyses = total_analyses + 1,
+                    last_updated = %s
+                WHERE id = 1
+            """, (now,))
+            cur.execute("""
+                INSERT INTO recent_analyses (
+                    timestamp, analysis_type, pdb_id, pdb_name, ligand_name,
+                    mutation, source, mode, wt_pdb_id, mutant_pdb_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                now,
+                entry["analysis_type"],
+                entry["pdb_id"],
+                entry["pdb_name"],
+                entry["ligand_name"],
+                entry["mutation"],
+                entry["source"],
+                entry["mode"],
+                entry.get("wt_pdb_id", ""),
+                entry.get("mutant_pdb_id", ""),
+            ))
+            cur.execute("""
+                DELETE FROM recent_analyses
+                WHERE id NOT IN (
+                    SELECT id
+                    FROM recent_analyses
+                    ORDER BY timestamp DESC, id DESC
+                    LIMIT %s
+                )
+            """, (MAX_RECENT,))
+
+    return {
+        "total_analyses": _get_database_stats()["total_analyses"],
+        "last_updated": now.isoformat(),
+        "recent_analyses": _get_database_recent(),
+    }
+
+
 def _read():
     return _read_file(_stats_file_path())
 
@@ -161,6 +337,13 @@ def _write(stats):
 
 def ensure_stats_store():
     with _lock:
+        if _use_database():
+            _ensure_database_store()
+            return {
+                **_get_database_stats(),
+                "recent_analyses": _get_database_recent(),
+            }
+
         stats = _read()
         _write(stats)
         return stats
@@ -168,6 +351,9 @@ def ensure_stats_store():
 
 def get_stats():
     with _lock:
+        if _use_database():
+            return _get_database_stats()
+
         s = _read()
         return {
             "total_analyses": s["total_analyses"],
@@ -177,11 +363,17 @@ def get_stats():
 
 def get_recent():
     with _lock:
+        if _use_database():
+            return _get_database_recent()
+
         return _read()["recent_analyses"][:MAX_RECENT]
 
 
 def record_analysis(metadata):
     with _lock:
+        if _use_database():
+            return _record_database_analysis(metadata)
+
         stats = _read()
         stats["total_analyses"] += 1
         now = datetime.now(timezone.utc).isoformat()
