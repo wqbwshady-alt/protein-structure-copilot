@@ -1290,9 +1290,17 @@
         </form>
       </div>
 
+      {% set result_mode = analysis_mode | default('', true) %}
+      {% if mutation_scan_result %}
+        {% set result_mode = 'mutation' %}
+      {% elif comparison_text %}
+        {% set result_mode = 'comparison' %}
+      {% endif %}
+
+      <div id="results-root" data-result-mode="{{ result_mode or 'empty' }}">
       {% if pdb_url %}
 
-        <div class="main-area" id="results-container">
+        <div class="main-area results-container fade-in" id="results-container" data-result-mode="{{ result_mode }}">
 
           <div>
             <h2>3D Structure Viewer</h2>
@@ -1319,56 +1327,150 @@
           </div>
 
           <div>
-            <h2>Analysis Result</h2>
+            {% if result_mode == 'mutation' and mutation_scan_result %}
+              <h2>Mutation Analysis Result</h2>
 
-            <div class="ai-dashboard">
-              <div class="ai-dashboard-title">
-                AI Structural Dashboard
+              <div class="ai-dashboard" style="max-height: none;">
+                <div class="ai-dashboard-title">
+                  Mutation Impact Summary
+                </div>
+
+                <div class="ai-card">
+                  <h3>Mutation Overview</h3>
+                  <p>
+                    {{ mutation_scan_result.mutation }}
+                    chain {{ mutation_scan_result.chain_id }}:
+                    {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
+                    &rarr;
+                    {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
+                  </p>
+                  {% if mutation_scan_result.selection_note %}
+                    <p>{{ mutation_scan_result.selection_note }}</p>
+                  {% endif %}
+                </div>
+
+                <div class="ai-card">
+                  <h3>Property Changes</h3>
+                  <ul>
+                    {% for name, value in mutation_scan_result.property_changes.items() %}
+                      <li>{{ name }}: {{ value }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+
+                <div class="ai-card">
+                  <h3>Interaction Impact</h3>
+                  <p>Possible loss:</p>
+                  <ul>
+                    {% for item in mutation_scan_result.interaction_impact.possible_loss %}
+                      <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+                    {% else %}
+                      <li>None predicted by current rules.</li>
+                    {% endfor %}
+                  </ul>
+
+                  <p>Possible gain:</p>
+                  <ul>
+                    {% for item in mutation_scan_result.interaction_impact.possible_gain %}
+                      <li>{{ item.interaction_type }}: {{ item.reason }}</li>
+                    {% else %}
+                      <li>None predicted by current rules.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+
+                <div class="ai-card">
+                  <h3>AI-style Mutation Interpretation</h3>
+                  <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
+                </div>
+
+                <details>
+                  <summary>View full mutation report</summary>
+                  <div class="raw-report">{{ mutation_scan_text }}</div>
+                </details>
+              </div>
+            {% elif result_mode == 'comparison' %}
+              <h2>Mutation Comparison Result</h2>
+              <pre class="comparison-box">{{ comparison_text }}</pre>
+            {% elif result_mode == 'protein_only' %}
+              <h2>Protein-only Result</h2>
+
+              <div class="ai-dashboard">
+                <div class="ai-dashboard-title">
+                  Protein-only structural overview
+                </div>
+
+                <div class="ai-card">
+                  <h3>Structure Summary</h3>
+                  <p>
+                    {{ protein_summary.chain_count if protein_summary else 0 }} chain(s),
+                    {{ protein_summary.residue_count if protein_summary else 0 }} protein residues,
+                    {{ protein_summary.atom_count if protein_summary else 0 }} protein atoms.
+                  </p>
+                </div>
+
+                <div class="ai-card">
+                  <h3>AI Structural Interpretation</h3>
+                  <p>{{ ai_html | safe }}</p>
+                </div>
+
+                <details>
+                  <summary>View full raw report</summary>
+                  <div class="raw-report">{{ result_text }}</div>
+                </details>
+              </div>
+            {% else %}
+              <h2>Analysis Result</h2>
+
+              <div class="ai-dashboard">
+                <div class="ai-dashboard-title">
+                  AI Structural Dashboard
+                </div>
+
+                <div class="ai-card">
+                  <h3>Pocket Type</h3>
+                  <p>
+                    AI-inferred pocket classification based on residue composition,
+                    ligand contacts, and local interaction pattern.
+                  </p>
+                </div>
+
+                <div class="ai-card">
+                  <h3>Key Hotspot Residues</h3>
+                  <ul id="hotspot-list">
+                    <li>Detecting hotspot residues...</li>
+                  </ul>
+                </div>
+
+                <div class="ai-card">
+                  <h3>AI Structural Interpretation</h3>
+                  <p>{{ ai_html | safe }}</p>
+                </div>
+
+                <details>
+                  <summary>View full raw report</summary>
+                  <div class="raw-report">{{ result_text }}</div>
+                </details>
               </div>
 
-              <div class="ai-card">
-                <h3>Pocket Type</h3>
-                <p>
-                  AI-inferred pocket classification based on residue composition,
-                  ligand contacts, and local interaction pattern.
-                </p>
+              <div>
+                {% if report_download_url %}
+                  <a href="{{ report_download_url }}" class="download-btn">
+                    Download Report (TXT)
+                  </a>
+                {% endif %}
+                {% if json_download_url %}
+                  <a href="{{ json_download_url }}" class="download-btn json">
+                    Download Data (JSON)
+                  </a>
+                {% endif %}
+                {% if csv_download_url %}
+                  <a href="{{ csv_download_url }}" class="download-btn csv">
+                    Download Data (CSV)
+                  </a>
+                {% endif %}
               </div>
-
-              <div class="ai-card">
-                <h3>Key Hotspot Residues</h3>
-                <ul id="hotspot-list">
-                  <li>Detecting hotspot residues...</li>
-                </ul>
-              </div>
-
-              <div class="ai-card">
-                <h3>AI Structural Interpretation</h3>
-                <p>{{ ai_html | safe }}</p>
-              </div>
-
-              <details>
-                <summary>View full raw report</summary>
-                <div class="raw-report">{{ result_text }}</div>
-              </details>
-            </div>
-
-            <div>
-              {% if report_download_url %}
-                <a href="{{ report_download_url }}" class="download-btn">
-                  Download Report (TXT)
-                </a>
-              {% endif %}
-              {% if json_download_url %}
-                <a href="{{ json_download_url }}" class="download-btn json">
-                  Download Data (JSON)
-                </a>
-              {% endif %}
-              {% if csv_download_url %}
-                <a href="{{ csv_download_url }}" class="download-btn csv">
-                  Download Data (CSV)
-                </a>
-              {% endif %}
-            </div>
+            {% endif %}
           </div>
 
         </div>
@@ -1392,7 +1494,7 @@
         <script>
           const pdbUrl = "{{ pdb_url }}";
 
-          const ligandName = {{ request.form.get('ligand_name', request.form.get('compare_ligand_name', '')) | tojson }};
+          const ligandName = {{ request.form.get('ligand_name', request.form.get('mutation_ligand_name', request.form.get('compare_ligand_name', ''))) | tojson }};
 
           const interactions = JSON.parse(
             document.getElementById("interaction-data").textContent
@@ -1422,6 +1524,7 @@
 
           function applyBaseStyle() {
             viewer.setStyle({}, { cartoon: { color: "spectrum" } });
+            if (!ligandName) return;
 
             viewer.setStyle(
               { resn: ligandName },
@@ -1544,7 +1647,11 @@
               showPocketSurface();
             }
 
-            viewer.zoomTo({ resn: ligandName });
+            if (ligandName) {
+              viewer.zoomTo({ resn: ligandName });
+            } else {
+              viewer.zoomTo();
+            }
             viewer.render();
             viewer.resize();
 
@@ -1709,77 +1816,8 @@
 
       {% endif %}
 
-      {% if result_text and not pdb_url and not comparison_text %}
+      {% if result_text and not pdb_url and not comparison_text and not mutation_scan_result %}
         <div class="error-box">{{ result_text }}</div>
-      {% endif %}
-
-      {% if mutation_scan_result %}
-        <h2>Mutation Analysis Result</h2>
-
-        <div class="ai-dashboard" style="max-height: none;">
-          <div class="ai-dashboard-title">
-            Mutation Impact Summary
-          </div>
-
-          <div class="ai-card">
-            <h3>Mutation Overview</h3>
-            <p>
-              {{ mutation_scan_result.mutation }}
-              chain {{ mutation_scan_result.chain_id }}:
-              {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
-              &rarr;
-              {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
-            </p>
-            {% if mutation_scan_result.selection_note %}
-              <p>{{ mutation_scan_result.selection_note }}</p>
-            {% endif %}
-          </div>
-
-          <div class="ai-card">
-            <h3>Property Changes</h3>
-            <ul>
-              {% for name, value in mutation_scan_result.property_changes.items() %}
-                <li>{{ name }}: {{ value }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-
-          <div class="ai-card">
-            <h3>Interaction Impact</h3>
-            <p>Possible loss:</p>
-            <ul>
-              {% for item in mutation_scan_result.interaction_impact.possible_loss %}
-                <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-              {% else %}
-                <li>None predicted by current rules.</li>
-              {% endfor %}
-            </ul>
-
-            <p>Possible gain:</p>
-            <ul>
-              {% for item in mutation_scan_result.interaction_impact.possible_gain %}
-                <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-              {% else %}
-                <li>None predicted by current rules.</li>
-              {% endfor %}
-            </ul>
-          </div>
-
-          <div class="ai-card">
-            <h3>AI-style Mutation Interpretation</h3>
-            <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
-          </div>
-
-          <details>
-            <summary>View full mutation report</summary>
-            <div class="raw-report">{{ mutation_scan_text }}</div>
-          </details>
-        </div>
-      {% endif %}
-
-      {% if comparison_text %}
-        <h2>Mutation Comparison Result</h2>
-        <pre class="comparison-box">{{ comparison_text }}</pre>
       {% endif %}
 
       {% if not pdb_url and not comparison_text and not mutation_scan_result %}
@@ -1787,6 +1825,7 @@
           Select an analysis mode above, upload your PDB file(s), and enter a ligand name to begin.
         </div>
       {% endif %}
+      </div>
 
     </div><!-- /.content -->
   </div><!-- /.container -->
@@ -1797,15 +1836,27 @@
       var tabBtns = document.querySelectorAll(".tab-btn");
       var tabPanels = document.querySelectorAll(".tab-panel");
 
+      function clearRenderedResults() {
+        var root = document.getElementById("results-root");
+        if (!root) return;
+        root.setAttribute("data-result-mode", "empty");
+        root.innerHTML = '<div class="placeholder">Select an analysis mode above, upload your PDB file(s), and enter a ligand name to begin.</div>';
+      }
+
       tabBtns.forEach(function(btn) {
         btn.addEventListener("click", function() {
           var targetId = btn.getAttribute("data-tab");
+          var activePanel = document.querySelector(".tab-panel.active");
+          var activeId = activePanel ? activePanel.id : "";
 
           tabBtns.forEach(function(b) { b.classList.remove("active"); });
           tabPanels.forEach(function(p) { p.classList.remove("active"); });
 
           btn.classList.add("active");
           document.getElementById(targetId).classList.add("active");
+          if (targetId !== activeId) {
+            clearRenderedResults();
+          }
         });
       });
     })();
@@ -2508,7 +2559,7 @@
       var progressBarFill = document.getElementById("progress-bar-fill");
       var progressDone = document.getElementById("progress-done-message");
       var progressError = document.getElementById("progress-error-message");
-      var resultsContainer = document.getElementById("results-container");
+      var resultsContainer = document.getElementById("results-root");
       var stagesEl = document.getElementById("progress-stages");
 
       var stageEls = stagesEl ? stagesEl.querySelectorAll(".progress-stage") : [];
@@ -2602,11 +2653,12 @@
         }
 
         if (!resultsContainer) {
-          resultsContainer = document.getElementById("results-container");
+          resultsContainer = document.getElementById("results-root");
         }
 
         var container = resultsContainer || document.querySelector(".content");
         if (!container) return;
+        container.setAttribute("data-result-mode", "error");
 
         var existing = container.querySelector(".main-area");
         if (existing) existing.remove();
@@ -2752,11 +2804,12 @@
 
       function renderResults(data) {
         if (!resultsContainer) {
-          resultsContainer = document.getElementById("results-container");
+          resultsContainer = document.getElementById("results-root");
         }
 
         var container = resultsContainer || document.querySelector(".content");
         if (!container) return;
+        container.setAttribute("data-result-mode", data.analysis_mode || "ligand");
 
         var existing = container.querySelector(".main-area");
         if (existing) existing.remove();

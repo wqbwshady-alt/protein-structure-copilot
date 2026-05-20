@@ -58,6 +58,8 @@ def empty_page_context(**overrides):
         "report_download_url": None,
         "json_download_url": None,
         "csv_download_url": None,
+        "analysis_mode": None,
+        "protein_summary": None,
         "interaction_data": [],
         "comparison_text": None,
         "mutation_scan_result": None,
@@ -498,6 +500,7 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
 
     return {
         "success": True,
+        "analysis_mode": "ligand",
         "result_text": report_text,
         "ai_html": make_html(ai_text),
         "pdb_url": url_for("uploaded_file", filename=filename),
@@ -592,6 +595,7 @@ def compare():
     )
 
     return render_index(
+        analysis_mode="comparison",
         result_text=wt_report_text,
         ai_html=make_html(wt_ai_text),
         pdb_url=url_for("uploaded_file", filename=wt_filename),
@@ -648,6 +652,7 @@ def mutation_scan():
     mutation_scan_text = build_mutation_scan_report(mutation_result)
 
     return render_index(
+        analysis_mode="mutation",
         result_text=mutation_scan_text,
         ai_html=make_html(mutation_result["ai_interpretation"]),
         pdb_url=url_for("uploaded_file", filename=filename),
