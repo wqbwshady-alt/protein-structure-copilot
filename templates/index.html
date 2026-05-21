@@ -1557,6 +1557,15 @@
                   <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
                 </div>
 
+                {% if ai_sections %}
+                  {% for title, body in ai_sections.items() %}
+                  <div class="ai-card">
+                    <h3>{{ title }}</h3>
+                    <p>{{ body | safe }}</p>
+                  </div>
+                  {% endfor %}
+                {% endif %}
+
                 <details>
                   <summary>View full mutation report</summary>
                   <div class="raw-report">{{ mutation_scan_text }}</div>
@@ -1565,6 +1574,18 @@
             {% elif result_mode == 'comparison' %}
               <h2>Mutation Comparison Result</h2>
               <pre class="comparison-box">{{ comparison_text }}</pre>
+
+              {% if ai_sections %}
+              <div class="ai-dashboard" style="max-height: none;">
+                <div class="ai-dashboard-title">AI Structural Dashboard</div>
+                {% for title, body in ai_sections.items() %}
+                <div class="ai-card">
+                  <h3>{{ title }}</h3>
+                  <p>{{ body | safe }}</p>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
             {% elif result_mode == 'protein_only' %}
               <h2>Protein-only Result</h2>
 
@@ -1582,10 +1603,19 @@
                   </p>
                 </div>
 
+                {% if ai_sections %}
+                  {% for title, body in ai_sections.items() %}
+                  <div class="ai-card">
+                    <h3>{{ title }}</h3>
+                    <p>{{ body | safe }}</p>
+                  </div>
+                  {% endfor %}
+                {% else %}
                 <div class="ai-card">
                   <h3>AI Structural Interpretation</h3>
                   <p>{{ ai_html | safe }}</p>
                 </div>
+                {% endif %}
 
                 <details>
                   <summary>View full raw report</summary>
@@ -1601,24 +1631,25 @@
                 </div>
 
                 <div class="ai-card">
-                  <h3>Pocket Type</h3>
-                  <p>
-                    AI-inferred pocket classification based on residue composition,
-                    ligand contacts, and local interaction pattern.
-                  </p>
-                </div>
-
-                <div class="ai-card">
                   <h3>Key Hotspot Residues</h3>
                   <ul id="hotspot-list">
                     <li>Detecting hotspot residues...</li>
                   </ul>
                 </div>
 
+                {% if ai_sections %}
+                  {% for title, body in ai_sections.items() %}
+                  <div class="ai-card">
+                    <h3>{{ title }}</h3>
+                    <p>{{ body | safe }}</p>
+                  </div>
+                  {% endfor %}
+                {% else %}
                 <div class="ai-card">
                   <h3>AI Structural Interpretation</h3>
                   <p>{{ ai_html | safe }}</p>
                 </div>
+                {% endif %}
 
                 <details>
                   <summary>View full raw report</summary>
@@ -1640,6 +1671,11 @@
                 {% if csv_download_url %}
                   <a href="{{ csv_download_url }}" class="download-btn csv">
                     Download Data (CSV)
+                  </a>
+                {% endif %}
+                {% if ai_report_download_url %}
+                  <a href="{{ ai_report_download_url }}" class="download-btn ai">
+                    Download AI Interpretation
                   </a>
                 {% endif %}
               </div>
@@ -2945,6 +2981,16 @@
                     '<tbody>' + chainRows + '</tbody>' +
                   '</table>' +
                 '</div>' +
+                (function() {
+                  if (data.ai_sections && Object.keys(data.ai_sections).length) {
+                    var cards = '';
+                    Object.keys(data.ai_sections).forEach(function(k) {
+                      cards += '<div class="ai-card"><h3>' + esc(k) + '</h3><p>' + (data.ai_sections[k] || '') + '</p></div>';
+                    });
+                    return cards;
+                  }
+                  return '';
+                })() +
                 '<div class="ai-card">' +
                   '<h3>Mode</h3>' +
                   '<p>Ligand pocket contact analysis was skipped.</p>' +
@@ -2967,6 +3013,9 @@
         }
         if (data.csv_download_url) {
           downloadLinks += '<a href="' + data.csv_download_url + '" class="download-btn csv">Download Data (CSV)</a>';
+        }
+        if (data.ai_report_download_url) {
+          downloadLinks += '<a href="' + data.ai_report_download_url + '" class="download-btn ai">Download AI Interpretation</a>';
         }
 
         var html = '<div class="main-area results-container fade-in">' +
@@ -2993,17 +3042,19 @@
             '<div class="ai-dashboard">' +
               '<div class="ai-dashboard-title">AI Structural Dashboard</div>' +
               '<div class="ai-card">' +
-                '<h3>Pocket Type</h3>' +
-                '<p>AI-inferred pocket classification based on residue composition, ligand contacts, and local interaction pattern.</p>' +
-              '</div>' +
-              '<div class="ai-card">' +
                 '<h3>Key Hotspot Residues</h3>' +
                 '<ul id="hotspot-list"><li>Detecting hotspot residues...</li></ul>' +
               '</div>' +
-              '<div class="ai-card">' +
-                '<h3>AI Structural Interpretation</h3>' +
-                '<p>' + (data.ai_html || "") + '</p>' +
-              '</div>' +
+              (function() {
+                if (data.ai_sections && Object.keys(data.ai_sections).length) {
+                  var cards = '';
+                  Object.keys(data.ai_sections).forEach(function(k) {
+                    cards += '<div class="ai-card"><h3>' + esc(k) + '</h3><p>' + (data.ai_sections[k] || '') + '</p></div>';
+                  });
+                  return cards;
+                }
+                return '<div class="ai-card"><h3>AI Structural Interpretation</h3><p>' + (data.ai_html || '') + '</p></div>';
+              })() +
               '<details>' +
                 '<summary>View full raw report</summary>' +
                 '<div class="raw-report">' + esc(data.result_text) + '</div>' +

@@ -25,6 +25,7 @@ from analysis_core import (
 )
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
+from ai_client import generate_structured_interpretation
 from services.mutation_scan import MutationScanError, analyze_mutation_scan
 from services.stats import ensure_stats_store, get_stats, get_recent, record_analysis
 
@@ -68,7 +69,9 @@ def empty_page_context(**overrides):
         "mutation_scan_text": None,
         "lost_residues": [],
         "gained_residues": [],
-        "hotspot_residues": []
+        "hotspot_residues": [],
+        "ai_sections": {},
+        "ai_report_download_url": None,
     }
     context.update(overrides)
     return context
@@ -454,6 +457,17 @@ def _build_protein_only_result(pdb_path, filename):
         "mode": "protein_only",
     })
 
+    ai_sections = generate_structured_interpretation("protein_only", {
+        "summary": summary,
+    })
+    ai_report_text = "\n\n".join(
+        f"{k}\n{v}" for k, v in ai_sections.items()
+    )
+    ai_report_filename = write_result_file(
+        f"ai_interpretation_{uuid4().hex}.txt",
+        ai_report_text
+    )
+
     return {
         "success": True,
         "analysis_mode": "protein_only",
@@ -467,7 +481,9 @@ def _build_protein_only_result(pdb_path, filename):
         "interaction_data": [],
         "hotspot_residues": [],
         "lost_residues": [],
-        "gained_residues": []
+        "gained_residues": [],
+        "ai_sections": ai_sections,
+        "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
     }
 
 
@@ -540,6 +556,20 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "mode": "ligand",
     })
 
+    ai_sections = generate_structured_interpretation("ligand", {
+        "ligand_name": ligand_name,
+        "contact_residues": contact_residues,
+        "counts": counts,
+        "interactions": interactions,
+    })
+    ai_report_text = "\n\n".join(
+        f"{k}\n{v}" for k, v in ai_sections.items()
+    )
+    ai_report_filename = write_result_file(
+        f"ai_interpretation_{uuid4().hex}.txt",
+        ai_report_text
+    )
+
     return {
         "success": True,
         "analysis_mode": "ligand",
@@ -552,7 +582,9 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "interaction_data": interactions,
         "hotspot_residues": get_hotspot_residues(interactions),
         "lost_residues": [],
-        "gained_residues": []
+        "gained_residues": [],
+        "ai_sections": ai_sections,
+        "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
     }
 
 
@@ -665,6 +697,26 @@ def compare():
         "mode": "comparison",
     })
 
+    shared = list(set(wt_contacts.keys()) & set(mut_contacts.keys()))
+
+    ai_sections = generate_structured_interpretation("comparison", {
+        "ligand_name": ligand_name,
+        "wt_contact_count": len(wt_contacts),
+        "mut_contact_count": len(mut_contacts),
+        "wt_counts": wt_counts,
+        "mut_counts": mut_counts,
+        "lost": lost,
+        "gained": gained,
+        "shared": shared,
+    })
+    ai_report_text = "\n\n".join(
+        f"{k}\n{v}" for k, v in ai_sections.items()
+    )
+    ai_report_filename = write_result_file(
+        f"ai_interpretation_{uuid4().hex}.txt",
+        ai_report_text
+    )
+
     result = {
         "success": True,
         "analysis_mode": "comparison",
@@ -675,7 +727,9 @@ def compare():
         "comparison_text": comparison_text,
         "lost_residues": residue_keys_to_json(lost),
         "gained_residues": residue_keys_to_json(gained),
-        "hotspot_residues": get_hotspot_residues(wt_interactions)
+        "hotspot_residues": get_hotspot_residues(wt_interactions),
+        "ai_sections": ai_sections,
+        "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
     }
     if wants_json:
         return jsonify(result)
@@ -752,6 +806,17 @@ def mutation_scan():
         "mode": "mutation",
     })
 
+    ai_sections = generate_structured_interpretation("mutation", {
+        "mutation_result": mutation_result,
+    })
+    ai_report_text = "\n\n".join(
+        f"{k}\n{v}" for k, v in ai_sections.items()
+    )
+    ai_report_filename = write_result_file(
+        f"ai_interpretation_{uuid4().hex}.txt",
+        ai_report_text
+    )
+
     result = {
         "success": True,
         "analysis_mode": "mutation",
@@ -761,7 +826,9 @@ def mutation_scan():
         "interaction_data": interactions,
         "hotspot_residues": get_hotspot_residues(interactions),
         "mutation_scan_result": mutation_result,
-        "mutation_scan_text": mutation_scan_text
+        "mutation_scan_text": mutation_scan_text,
+        "ai_sections": ai_sections,
+        "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
     }
     if wants_json:
         return jsonify(result)
