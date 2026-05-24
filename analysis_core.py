@@ -291,3 +291,581 @@ def sort_residue_keys(residue_keys):
         residue_keys,
         key=lambda x: (x[0], int(x[2]) if x[2].isdigit() else 9999)
     )
+
+
+# ============================================================
+#  Phase 1: ResidueRanker — deterministic multi-factor scoring
+# ============================================================
+
+INTERACTION_WEIGHTS = {
+    "charged / electrostatic": 1.0,
+    "polar / possible H-bond": 0.8,
+    "hydrophobic contact": 0.6,
+    "van der Waals contact": 0.4,
+}
+
+AROMATIC_RESIDUES = {"PHE", "TYR", "TRP", "HIS"}
+CHARGED_RESIDUES = POSITIVE | NEGATIVE
+D_MIN = 1.5
+D_MAX = 4.0
+MAX_WEIGHTED_CONTACTS = 5.0
+MAX_UNIQUE_TYPES = 4
+
+
+class ResidueRanker:
+    """Deterministic multi-factor residue importance scoring.
+
+    Formula:
+      residue_score = distance_score + interaction_score + hotspot_score
+                    + diversity_score + chemistry_score
+
+    All components in [0, 1]; total max = 1.0.
+    No LLM dependency — purely geometric + rule-based.
+    """
+
+    def __init__(self, contact_residues, interactions):
+        self._contacts = contact_residues or {}
+        self._interactions = interactions or []
+
+        self._hotspot_keys = set()
+        hotspots = get_hotspot_residues(self._interactions)
+        for h in hotspots:
+            self._hotspot_keys.add((h["chain_id"], h["res_name"], h["res_id"]))
+
+        self._residue_interactions = {}
+        for ix in self._interactions:
+            key = (ix["chain_id"], ix["res_name"], ix["res_id"])
+            self._residue_interactions.setdefault(key, []).append(ix)
+
+    def score_all(self):
+        """Return list of dicts sorted by score descending."""
+        results = []
+        for (chain_id, res_name, res_id), _atom in self._contacts.items():
+            residue_ixs = self._residue_interactions.get(
+                (chain_id, res_name, res_id), []
+            )
+            if not residue_ixs:
+                continue
+
+            min_d = min(ix["distance"] for ix in residue_ixs)
+            components = {
+                "distance_score": self._distance_score(min_d),
+                "interaction_score": self._interaction_score(residue_ixs),
+                "hotspot_score": self._hotspot_score(chain_id, res_name, res_id),
+                "diversity_score": self._diversity_score(residue_ixs),
+                "chemistry_score": self._chemistry_score(res_name),
+            }
+            total = sum(components.values())
+            total = round(min(total, 1.0), 4)
+
+            results.append({
+                "chain_id": chain_id,
+                "res_name": res_name,
+                "res_id": res_id,
+                "residue_key": f"{chain_id}:{res_name}{res_id}",
+                "score": total,
+                "score_components": components,
+                "interaction_evidence": self._build_evidence(residue_ixs),
+                "contact_count": len(residue_ixs),
+                "min_distance": min_d,
+                "residue_confidence": self._residue_confidence(min_d, residue_ixs),
+                "pocket_location": self._pocket_location(min_d, len(residue_ixs)),
+                "why_matters": self._why_matters(
+                    chain_id, res_name, res_id, total, min_d, residue_ixs
+                ),
+            })
+
+        results.sort(key=lambda r: (-r["score"], r["min_distance"]))
+        for i, r in enumerate(results):
+            r["rank"] = i + 1
+        return results
+
+    # ---- Scoring components ----
+
+    def _distance_score(self, d):
+        if d <= D_MIN:
+            return 0.30
+        if d >= D_MAX:
+            return 0.0
+        return round(0.30 * (1.0 - (d - D_MIN) / (D_MAX - D_MIN)), 4)
+
+    def _interaction_score(self, residue_ixs):
+        weighted = sum(
+            INTERACTION_WEIGHTS.get(ix.get("interaction_type", ""), 0.4)
+            for ix in residue_ixs
+        )
+        return round(0.30 * min(weighted, MAX_WEIGHTED_CONTACTS) / MAX_WEIGHTED_CONTACTS, 4)
+
+    def _hotspot_score(self, chain_id, res_name, res_id):
+        return 0.15 if (chain_id, res_name, res_id) in self._hotspot_keys else 0.0
+
+    def _diversity_score(self, residue_ixs):
+        unique = len(set(ix.get("interaction_type", "") for ix in residue_ixs))
+        return round(0.15 * min(unique, MAX_UNIQUE_TYPES) / MAX_UNIQUE_TYPES, 4)
+
+    def _chemistry_score(self, res_name):
+        score = 0.0
+        if res_name in CHARGED_RESIDUES:
+            score += 0.05
+        if res_name in AROMATIC_RESIDUES:
+            score += 0.05
+        if res_name == "GLY":
+            score += 0.05
+        if res_name == "PRO":
+            score += 0.05
+        return round(min(score, 0.10), 4)
+
+    # ---- Evidence ----
+
+    def _build_evidence(self, residue_ixs):
+        return [
+            {
+                "type": ix.get("interaction_type", "contact"),
+                "distance": ix["distance"],
+                "ligand_atom": ix.get("ligand_atom", ""),
+                "protein_atom": ix.get("atom_name", ""),
+                "confidence": self._interaction_confidence(
+                    ix.get("interaction_type", ""), ix["distance"],
+                    ix.get("ligand_element", ""), ix.get("element", "")
+                ),
+            }
+            for ix in residue_ixs
+        ]
+
+    # ---- Confidence ----
+
+    def _residue_confidence(self, min_d, residue_ixs):
+        has_strong = any(
+            ix.get("interaction_type", "") in ("charged / electrostatic", "polar / possible H-bond")
+            for ix in residue_ixs
+        )
+        if min_d <= 3.2 and len(residue_ixs) >= 2 and has_strong:
+            return "high"
+        if min_d > 3.8 or (len(residue_ixs) == 1 and not has_strong):
+            return "low"
+        return "medium"
+
+    def _interaction_confidence(self, itype, distance, lig_el, prot_el):
+        if itype == "charged / electrostatic" and distance <= 3.2:
+            return "high"
+        if itype == "polar / possible H-bond" and distance <= 3.0:
+            return "high"
+        if itype == "hydrophobic contact" and distance <= 3.5 and lig_el == "C" and prot_el == "C":
+            return "high"
+        if itype == "van der Waals contact" and distance > 3.5:
+            return "low"
+        return "medium"
+
+    # ---- Pocket location ----
+
+    def _pocket_location(self, min_d, contact_count):
+        if min_d <= 3.0 and contact_count >= 2:
+            return "core"
+        if min_d <= 3.8:
+            return "inner"
+        return "peripheral"
+
+    # ---- Explanation ----
+
+    def _why_matters(self, chain_id, res_name, res_id, score, min_d, residue_ixs):
+        types = sorted(set(ix.get("interaction_type", "contact") for ix in residue_ixs))
+        type_str = ", ".join(types)
+        count = len(residue_ixs)
+        is_hotspot = (chain_id, res_name, res_id) in self._hotspot_keys
+
+        if score >= 0.70:
+            level = "key binding anchor"
+        elif score >= 0.45:
+            level = "significant contributor"
+        elif score >= 0.20:
+            level = "moderate contact"
+        else:
+            level = "peripheral contact"
+
+        parts = [
+            f"{res_name}{res_id} ranks as a {level} (score {score:.2f})",
+            f"because it forms {count} close contact(s) at minimum {min_d:.1f}A",
+            f"involving {type_str}.",
+        ]
+        if is_hotspot:
+            parts.append("It is among the top-5 hotspot residues.")
+        if score >= 0.50:
+            parts.append("This residue likely plays a significant role in ligand stabilization.")
+        else:
+            parts.append("Its contribution to binding may be secondary to the core anchor residues.")
+
+        return " ".join(parts)
+
+
+# ============================================================
+#  Phase 2: ConfidenceAssessor + LimitationsBuilder
+# ============================================================
+
+class ConfidenceAssessor:
+    """Evidence-based confidence classification — no LLM dependency.
+
+    Produces: overall_analysis_confidence, per-residue distribution,
+    per-interaction distribution, ai_interpretation_confidence,
+    data_quality_flags.
+    """
+
+    def __init__(self, contact_residues, interactions, ligand_detected,
+                 ai_available=True, ai_truncated=False):
+        self._contacts = contact_residues or {}
+        self._interactions = interactions or []
+        self._ligand_detected = ligand_detected
+        self._ai_available = ai_available
+        self._ai_truncated = ai_truncated
+
+    def assess(self, ranked_residues=None):
+        overall = self._overall_confidence()
+        res_dist = self._residue_distribution(ranked_residues or [])
+        int_dist = self._interaction_distribution()
+
+        return {
+            "overall_analysis_confidence": overall,
+            "confidence_reason": self._confidence_reason(overall),
+            "residue_confidence_distribution": res_dist,
+            "interaction_confidence_distribution": int_dist,
+            "ai_interpretation_confidence": self._ai_confidence(overall),
+            "data_quality_flags": self._quality_flags(),
+        }
+
+    def _overall_confidence(self):
+        n_contacts = len(self._contacts)
+        types = set(ix.get("interaction_type", "") for ix in self._interactions)
+        has_close_strong = any(
+            ix.get("interaction_type", "") in ("charged / electrostatic", "polar / possible H-bond")
+            and ix["distance"] <= 3.5
+            for ix in self._interactions
+        )
+        if (
+            self._ligand_detected
+            and n_contacts >= 15
+            and len(types) >= 2
+            and has_close_strong
+        ):
+            return "high"
+        if (
+            not self._ligand_detected
+            or n_contacts < 10
+            or len(types) <= 1
+            or (not has_close_strong and n_contacts < 15)
+        ):
+            return "low"
+        return "medium"
+
+    def _confidence_reason(self, overall):
+        n = len(self._contacts)
+        types = sorted(set(ix.get("interaction_type", "") for ix in self._interactions))
+        reasons = []
+        if self._ligand_detected:
+            reasons.append(f"ligand detected with {n} contact residues")
+        else:
+            reasons.append("no ligand detected")
+        reasons.append(f"interaction types: {', '.join(types) if types else 'none'}")
+        if n >= 15:
+            reasons.append("sufficient contact count (≥15)")
+        else:
+            reasons.append("low contact count (<15)")
+        reasons.append("static crystal structure without MD/energy validation")
+        if overall == "high":
+            reasons.append("multiple strong interaction types with close contacts")
+        elif overall == "low":
+            reasons.append("insufficient structural evidence for high-confidence interpretation")
+        return "; ".join(reasons)
+
+    def _residue_distribution(self, ranked):
+        dist = {"high": 0, "medium": 0, "low": 0}
+        for r in ranked:
+            conf = r.get("residue_confidence", "low")
+            if conf in dist:
+                dist[conf] += 1
+        return dist
+
+    def _interaction_distribution(self):
+        dist = {"high": 0, "medium": 0, "low": 0}
+        for ix in self._interactions:
+            itype = ix.get("interaction_type", "")
+            d = ix["distance"]
+            lig_el = ix.get("ligand_element", "")
+            prot_el = ix.get("element", "")
+            if itype == "charged / electrostatic" and d <= 3.2:
+                dist["high"] += 1
+            elif itype == "polar / possible H-bond" and d <= 3.0:
+                dist["high"] += 1
+            elif itype == "hydrophobic contact" and d <= 3.5 and lig_el == "C" and prot_el == "C":
+                dist["high"] += 1
+            elif itype == "van der Waals contact" and d > 3.5:
+                dist["low"] += 1
+            else:
+                dist["medium"] += 1
+        return dist
+
+    def _ai_confidence(self, overall):
+        if not self._ai_available:
+            return "low"
+        if self._ai_truncated or overall == "low":
+            return "low"
+        if overall == "high":
+            return "medium"
+        return "medium"
+
+    def _quality_flags(self):
+        n_contacts = len(self._contacts)
+        types = set(ix.get("interaction_type", "") for ix in self._interactions)
+        return {
+            "has_valid_pdb": True,
+            "ligand_detected": self._ligand_detected,
+            "contact_count_sufficient": n_contacts >= 10,
+            "has_multiple_evidence_types": len(types) >= 2,
+            "has_close_strong_contacts": any(
+                ix["distance"] <= 3.5
+                and ix.get("interaction_type", "") in ("charged / electrostatic", "polar / possible H-bond")
+                for ix in self._interactions
+            ),
+            "has_energetic_validation": False,
+            "has_conservation_data": False,
+            "has_md_simulation": False,
+            "has_multiple_structures": False,
+        }
+
+
+class LimitationsBuilder:
+    """Structured limitations — always present in output."""
+
+    def build(self, mode="ligand", ligand_ambiguous=False):
+        base = {
+            "static_structure_only": True,
+            "no_energetic_validation": True,
+            "no_dynamics": True,
+            "no_hydrogens": True,
+            "no_solvent_modeling": True,
+            "no_conservation_analysis": True,
+            "no_mutation_validation": True,
+            "no_docking": True,
+            "distance_cutoff_5A": True,
+            "interaction_classification_geometric_only": True,
+            "ligand_ambiguous": ligand_ambiguous,
+            "disclaimer": (
+                "This analysis is based on geometric distance criteria from a "
+                "single static PDB structure. It does not constitute a validated "
+                "energetic prediction. For quantitative binding assessment, "
+                "MD simulation, MM-GBSA, ITC, or SPR experiments are recommended."
+            ),
+        }
+        if mode == "mutation":
+            base["disclaimer"] += (
+                " Mutation impact predictions are heuristic estimates, "
+                "not validated ΔΔG calculations. Sidechain remodeling, "
+                "backbone rearrangement, and solvent reorganization are not modeled."
+            )
+        if mode == "comparison":
+            base["disclaimer"] += (
+                " Structural comparison is based on static crystallographic "
+                "conformations. Conformational changes between WT and mutant "
+                "may not be fully captured by contact comparison alone."
+            )
+        return base
+
+
+# ============================================================
+#  Phase 3: SafetyGuardrails — scientific overclaiming prevention
+# ============================================================
+
+FORBIDDEN_PATTERNS = [
+    (r"\bKd\s*[=~<>≈]\s*\d+", "numeric Kd value"),
+    (r"\bKi\s*[=~<>≈]\s*\d+", "numeric Ki value"),
+    (r"\bIC50\s*[=~<>≈]\s*\d+", "numeric IC50 value"),
+    (r"\bΔG\s*[=~<>≈]\s*-?\d+", "numeric ΔG value"),
+    (r"\bbinding affinity\s*[=~<>≈]\s*\d+", "numeric binding affinity"),
+    (r"\b(inhibits?|treats?|cures?|therapy for)\b.*\b(disease|cancer|disorder|syndrome)\b",
+     "disease mechanism claim"),
+    (r"\b(ritonavir|darunavir|lopinavir|atazanavir|saquinavir|tipranavir|indinavir|nelfinavir|amprenavir)\b",
+     "specific drug name"),
+    (r"\bknown\s+(to|as)\s+(a\s+)?(drug|inhibitor|therapeutic|treatment)\b",
+     "unverified drug classification"),
+]
+
+EVIDENCE_TAG_RULES = {
+    "charged / electrostatic": "[S]",
+    "polar / possible H-bond": "[S]",
+    "hydrophobic contact": "[S]",
+    "van der Waals contact": "[S]",
+    "suggest": "[I]",
+    "indicate": "[I]",
+    "consistent with": "[I]",
+    "may": "[H]",
+    "possibly": "[H]",
+    "likely": "[H]",
+    "heuristic": "[H]",
+    "requires experimental": "[E]",
+    "validated": "[E]",
+}
+
+MANDATORY_DISCLAIMER = (
+    "[E] This is a structural hypothesis based on geometric distance criteria "
+    "from a single static PDB structure. It is not a validated energetic or "
+    "functional prediction."
+)
+
+
+class SafetyGuardrails:
+    """Post-process AI output for scientific safety."""
+
+    @staticmethod
+    def validate(text):
+        """Check text for forbidden claims. Returns (is_safe, violations)."""
+        if not text:
+            return True, []
+        violations = []
+        import re
+        for pattern, description in FORBIDDEN_PATTERNS:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                violations.append({
+                    "pattern": pattern,
+                    "description": description,
+                    "matches": matches[:3],
+                })
+        return len(violations) == 0, violations
+
+    @staticmethod
+    def has_disclaimer(text):
+        """Check if text contains an appropriate limitations disclaimer."""
+        if not text:
+            return False
+        keywords = ["static structure", "structural hypothesis", "not a validated",
+                     "structural inference", "heuristic", "requires experimental"]
+        return any(kw in text.lower() for kw in keywords)
+
+    @staticmethod
+    def tag_evidence(text, mode="ligand"):
+        """Apply [S][I][H][E] evidence tags to fallback output paragraphs."""
+        if not text:
+            return text
+        lines = text.split("\n")
+        tagged = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("## "):
+                tagged.append(line)
+                continue
+            # Determine evidence level
+            if any(w in stripped.lower() for w in
+                   ["distance", "contact", "atom ", "residue", "chain ", "angstrom", "a)",
+                    "bullet", "- ", "charged", "polar", "hydrophobic", "van der waals"]):
+                tagged.append("[S] " + line)
+            elif any(w in stripped.lower() for w in
+                     ["suggest", "indicate", "consistent with", "appears",
+                      "characteristic of", "typical"]):
+                tagged.append("[I] " + line)
+            elif any(w in stripped.lower() for w in
+                     ["may", "possibly", "likely", "could", "might", "heuristic",
+                      "mutation", "impact"]):
+                tagged.append("[H] " + line)
+            else:
+                tagged.append("[I] " + line)
+        result = "\n".join(tagged)
+        if SafetyGuardrails.has_disclaimer(result):
+            return result
+        return result + "\n\n" + MANDATORY_DISCLAIMER
+
+    @staticmethod
+    def safe_output_template(mode, data):
+        """Build a guaranteed-safe fallback that never overclaims."""
+        ranked = data.get("important_residues", [])[:5]
+        conf = data.get("confidence", {})
+        lim = data.get("limitations", {})
+
+        sections = []
+        sections.append("## A. Executive Summary")
+        if ranked:
+            top = ranked[0]
+            sections.append(
+                f"[S] {top['residue_key']} ranks #1 (score {top['score']:.2f}) "
+                f"with {top['contact_count']} contact(s) at minimum {top['min_distance']}A."
+            )
+            sections.append(
+                f"[I] The pocket contains {len(data.get('important_residues',[]))} "
+                f"ranked residues with {conf.get('overall_analysis_confidence','unknown')} "
+                f"overall confidence."
+            )
+        else:
+            sections.append("[S] No ranked residues available for this analysis.")
+
+        sections.append("## B. Pocket Profile")
+        sections.append("[S] Pocket residue composition and interaction types "
+                        "are based on geometric classification from PDB coordinates.")
+
+        sections.append("## C. Key Interactions")
+        if ranked:
+            for r in ranked[:3]:
+                ev = r.get("interaction_evidence", [])
+                types = ", ".join(sorted(set(e["type"] for e in ev)))
+                sections.append(
+                    f"[S] {r['residue_key']}: {len(ev)} contact(s) at "
+                    f"{r['min_distance']}A — {types}"
+                )
+        else:
+            sections.append("[S] Insufficient structural evidence — no close "
+                            "contacts detected within 4.0A cutoff.")
+
+        sections.append("## D. Residue-Level Evidence")
+        if ranked:
+            for r in ranked[:5]:
+                sections.append(f"- [S] {r['residue_key']}: score {r['score']:.2f}, "
+                                f"min distance {r['min_distance']}A, "
+                                f"{r['contact_count']} contact(s)")
+        else:
+            sections.append("[S] No residue-level interaction data within cutoff distance.")
+
+        sections.append("## E. Mutation Impact Assessment")
+        if mode == "mutation":
+            sections.append("[H] Mutation impact is a heuristic estimate based on "
+                            "physicochemical property comparison and geometric interaction "
+                            "patterns. Confidence: LOW — no energetic validation performed.")
+        else:
+            sections.append("[S] N/A — single-structure analysis. No mutation data provided.")
+
+        sections.append("## F. Biological Interpretation")
+        sections.append(
+            "[I] The structural evidence suggests a binding interface consistent "
+            "with geometric pocket-ligand complementarity. Specific functional roles "
+            "cannot be assigned from structural data alone."
+        )
+
+        sections.append("## G. Limitations")
+        sections.append(lim.get("disclaimer", MANDATORY_DISCLAIMER))
+
+        return "\n\n".join(sections)
+
+    @staticmethod
+    def recommended_next_steps(mode, conf):
+        """Generate evidence-based recommendations — no hallucination."""
+        steps = []
+        overall = conf.get("overall_analysis_confidence", "medium") if conf else "medium"
+
+        steps.append(
+            "Perform 100ns molecular dynamics simulation to assess "
+            "pocket flexibility and contact stability over time."
+        )
+        if overall != "high":
+            steps.append(
+                "Validate key residue contacts with alanine scanning "
+                "mutagenesis or site-directed mutagenesis experiments."
+            )
+        steps.append(
+            "Run MM-GBSA or MM-PBSA to estimate per-residue binding "
+            "free energy contributions (currently distance-based only)."
+        )
+        if conf and conf.get("data_quality_flags", {}).get("has_multiple_evidence_types"):
+            steps.append(
+                "Compare with homologous structures to assess "
+                "conservation of key contact residues across species."
+            )
+        steps.append(
+            "Experimental validation: SPR or ITC to measure binding "
+            "affinity and compare with structural predictions."
+        )
+        return steps

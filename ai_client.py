@@ -606,33 +606,38 @@ def generate_protein_only_interpretation(summary):
 
 SYSTEM_PROMPT = (
     "You are a structural biology research assistant. "
-    "Your role is evidence-based interpretation of protein-ligand binding data, not speculation. "
+    "Your role is evidence-based interpretation of pre-computed structural data. "
     "You write in the style of a scientific research report: concise, cautious, professional. "
-    "Every claim must be traceable to specific structural evidence provided in the data. "
-    "When evidence is absent, you explicitly state so. "
-    "You do not invent protein functions, disease mechanisms, drug names, or literature conclusions."
+    "Every claim must be traceable to specific structural evidence: residue name, chain ID, "
+    "distance (A), and interaction type. "
+    "When evidence is absent, you explicitly state: 'Insufficient structural evidence to determine this.' "
+    "You NEVER invent: numeric binding affinities (Kd, Ki, IC50, ΔG), disease mechanisms, "
+    "drug names, therapeutic claims, or literature references not provided in the data."
 )
 
 _STRUCTURED_SECTIONS = [
-    ("A. Executive Summary", "2-3 sentence overview: pocket type, key residues, dominant interaction modes, confidence level"),
+    ("A. Executive Summary", "2-3 sentence overview: top-ranked residues, dominant interaction modes, overall confidence level from the data provided"),
     ("B. Pocket Physicochemical Profile", "hydrophobic/polar/charged residue composition, what the chemical environment implies for ligand binding"),
-    ("C. Key Interaction Network", "which residues are likely key anchors, which interaction types dominate, what each type suggests about stabilization mechanism"),
-    ("D. Residue-Level Evidence", "list each key contact with: chain ID, residue name+number, atom name, interaction type, distance (A). Format each as bullet point"),
-    ("E. Mutation Impact Assessment", "if mutation data present: confidence level LOW/MEDIUM/HIGH with reasoning; if no mutation data: explicitly state N/A"),
-    ("F. Biological Interpretation", "what the pocket architecture suggests about binding mode; use cautious language: suggests/may indicate/is consistent with"),
-    ("G. Limitations", "list inherent limitations: static crystal structure, no MD/energy calculation, 5 A cutoff, geometric interaction classification only, no solvent/ions/pH effects"),
+    ("C. Key Interaction Network", "which residues are likely key anchors (cite their scores and distances), which interaction types dominate, what each type suggests about stabilization mechanism"),
+    ("D. Residue-Level Evidence", "for each of the top 5 ranked residues, state: chain ID, residue name+number, score, min distance (A), interaction types. Use the IMPORTANT RESIDUES data provided below — do not fabricate scores or distances"),
+    ("E. Mutation Impact Assessment", "if mutation data present: state confidence level with reasoning based on provided data; if no mutation data: explicitly state N/A"),
+    ("F. Biological Interpretation", "what the pocket architecture suggests about binding mode; use cautious language: suggests/may indicate/is consistent with; cite specific residue evidence"),
+    ("G. Limitations", "list limitations based on the LIMITATIONS data provided: static structure, no energetics, no dynamics, geometric classification only, no conservation, no MD"),
 ]
 
 _STRUCTURED_RULES = (
     "CRITICAL RULES — every response must follow these:\n"
-    "1. Every factual claim MUST cite: residue name, chain ID, residue number, interaction type, distance (A)\n"
+    "1. Every factual claim MUST cite: residue name, chain ID, distance (A), interaction type FROM THE PROVIDED DATA\n"
     "2. If structural data cannot support a claim, write exactly: Insufficient structural evidence to determine this.\n"
-    "3. Do NOT mention: specific protein function, disease mechanism, known drug names, literature references, biological pathways\n"
-    "4. Use cautious language: suggests, may indicate, is consistent with, possibly, potentially, appears to\n"
-    "5. For Section E: state confidence level LOW / MEDIUM / HIGH with explicit reasoning based on available data\n"
-    "6. Each section: 2-5 sentences, concise and substantive\n"
-    "7. Use correct structural biology terminology: salt bridge, pi-stacking, H-bond network, hydrophobic core, van der Waals packing\n"
-    "8. Total response under 700 words"
+    "3. NEVER state numeric binding affinity (Kd, Ki, IC50, ΔG) or binding energy values\n"
+    "4. NEVER mention: specific protein function, disease mechanism, known drug names, literature references\n"
+    "5. Use cautious language: suggests, may indicate, is consistent with, possibly, potentially, appears to\n"
+    "6. For Section E: use the confidence level and reasoning FROM THE PROVIDED DATA\n"
+    "7. Each section: 2-5 sentences, concise and substantive\n"
+    "8. Use correct structural biology terminology: salt bridge, pi-stacking, H-bond network, hydrophobic core, van der Waals packing\n"
+    "9. For Section D: USE THE IMPORTANT RESIDUES DATA below. Do not invent residue names or scores.\n"
+    "10. End Section G with the disclaimer: 'This is a structural hypothesis based on geometric distance criteria from a static PDB structure. It does not constitute a validated energetic prediction.'\n"
+    "11. Total response under 500 words"
 )
 
 
@@ -677,33 +682,44 @@ def build_structured_prompt(mode, data):
         ligand_name = data.get("ligand_name", "unknown")
         counts = data.get("counts", {})
         interactions = data.get("interactions", [])
+        important_residues = data.get("important_residues", [])
+        confidence = data.get("confidence", {})
+        limitations = data.get("limitations", {})
 
-        residue_list = data.get("residue_list") or []
-        if not residue_list:
-            contact_residues = data.get("contact_residues")
-            if contact_residues and hasattr(contact_residues, "keys"):
-                residue_list = sorted(
-                    f"{chain}:{rn}{ri}"
-                    for chain, rn, ri in contact_residues.keys()
-                )
-
-        interaction_lines = []
-        for x in (interactions or [])[:15]:
-            interaction_lines.append(
-                f"Chain {x.get('chain_id','?')}: {x.get('res_name','?')}{x.get('res_id','?')} "
-                f"atom {x.get('atom_name','?')} | {x.get('interaction_type','contact')} | "
-                f"{x.get('distance','?')} A | ligand atom {x.get('ligand_atom','?')}"
+        # Build ranking table
+        ranking_lines = []
+        for r in (important_residues or [])[:10]:
+            components = r.get("score_components", {})
+            ranking_lines.append(
+                f"#{r.get('rank','?')} {r.get('residue_key','?')} "
+                f"score={r.get('score','?'):.3f} "
+                f"d_min={r.get('min_distance','?')}A "
+                f"contacts={r.get('contact_count','?')} "
+                f"types={', '.join(set(e['type'] for e in r.get('interaction_evidence',[])))} "
+                f"conf={r.get('residue_confidence','?')} "
+                f"| {r.get('why_matters','')}"
             )
+
+        confidence_line = (
+            f"Overall confidence: {confidence.get('overall_analysis_confidence','unknown')}. "
+            f"Reason: {confidence.get('confidence_reason','')}"
+        )
+
+        limitations_line = limitations.get("disclaimer", "")
 
         data_block = f"""Ligand: {ligand_name}
 
 Pocket residue composition (within 5 A):
 Hydrophobic: {counts.get('hydrophobic', 0)} | Polar: {counts.get('polar', 0)} | Positive: {counts.get('positive', 0)} | Negative: {counts.get('negative', 0)}
 
-Contact residues: {residue_list}
+IMPORTANT RESIDUES (pre-computed ranking — use these exact scores and distances):
+{chr(10).join(ranking_lines) if ranking_lines else 'No ranked residues available.'}
 
-Nearest ligand-residue contacts (<=4.0 A, max 15):
-{chr(10).join(interaction_lines) if interaction_lines else 'No close contacts detected within 4.0 A.'}"""
+CONFIDENCE ASSESSMENT:
+{confidence_line}
+
+LIMITATIONS:
+{limitations_line}"""
 
     elif mode == "mutation":
         m = data.get("mutation_result", {})
@@ -814,319 +830,9 @@ Sections C, D, E should explicitly state this limitation where applicable."""
 
 
 def _structured_local_fallback(mode, data):
-    """Rule-based 7-section interpretation when DeepSeek is unavailable."""
-
-    def _section(title, body):
-        return f"## {title}\n{body}"
-
-    if mode == "ligand":
-        ligand_name = data.get("ligand_name", "unknown")
-        counts = data.get("counts", {})
-        interactions = data.get("interactions", [])
-        contact_residues = data.get("contact_residues", {})
-
-        total = len(contact_residues) if isinstance(contact_residues, dict) else 0
-        h = counts.get("hydrophobic", 0)
-        p = counts.get("polar", 0)
-        pos = counts.get("positive", 0)
-        neg = counts.get("negative", 0)
-
-        top_names = ", ".join(
-            f"{x.get('res_name','')}{x.get('res_id','')}"
-            for x in (interactions or [])[:5]
-        ) or "(no close contacts)"
-
-        charged = [x for x in (interactions or []) if "charged" in x.get("interaction_type", "")]
-        polar_ints = [x for x in (interactions or []) if "H-bond" in x.get("interaction_type", "") or "polar" in x.get("interaction_type", "")]
-        vdw = [x for x in (interactions or []) if "van der Waals" in x.get("interaction_type", "")]
-
-        if h > max(p, pos, neg):
-            pocket_type = f"Primarily hydrophobic pocket ({h}/{total} contacts hydrophobic)"
-        elif pos > neg and pos >= 3:
-            pocket_type = f"Positively charged pocket (Lys/Arg/His: {pos})"
-        elif neg > pos and neg >= 3:
-            pocket_type = f"Negatively charged pocket (Asp/Glu: {neg})"
-        else:
-            pocket_type = "Mixed-composition pocket"
-
-        sections = [
-            _section("A. Executive Summary",
-                f"{pocket_type}. {total} contact residues within 5 A of {ligand_name}. "
-                f"{len(polar_ints)} polar/H-bond contacts, {len(charged)} charged contacts, "
-                f"{len(vdw)} van der Waals contacts. "
-                f"Top contacts: {top_names}."
-            ),
-            _section("B. Pocket Physicochemical Profile",
-                f"Hydrophobic: {h} residues | Polar: {p} | Positively charged: {pos} | Negatively charged: {neg}. "
-                + (f"A hydrophobic-dominant pocket suggests nonpolar packing is the main stabilization mechanism. "
-                   f"This is characteristic of small-molecule binding sites."
-                   if h > max(p, pos, neg) else
-                   f"A charged/polar pocket environment suggests electrostatic complementarity "
-                   f"may play a significant role in ligand recognition.")
-            ),
-            _section("C. Key Interaction Network",
-                f"{len(polar_ints)} potential H-bond/polar contacts identified. "
-                + (f"Key polar contacts: {', '.join(x['res_name'] + x['res_id'] for x in polar_ints[:5])}. "
-                   if polar_ints else "No strong polar contacts detected. ")
-                + f"{len(charged)} charged/electrostatic contacts. "
-                + (f"Charged contacts involve: {', '.join(x['res_name'] + x['res_id'] for x in charged[:5])}. "
-                   if charged else "No charge-charge interactions at close range. ")
-                + f"{len(vdw)} van der Waals contacts fill out the remaining interaction surface."
-            ),
-            _section("D. Residue-Level Evidence",
-                "\n".join(
-                    f"- Chain {x.get('chain_id','?')}: {x.get('res_name','?')}{x.get('res_id','?')} "
-                    f"({x.get('atom_name','?')}) — {x.get('interaction_type','contact')} — "
-                    f"{x.get('distance','?')} A (ligand atom: {x.get('ligand_atom','?')})"
-                    for x in (interactions or [])[:10]
-                ) or "Insufficient structural evidence — no interaction data available within cutoff distance."
-            ),
-            _section("E. Mutation Impact Assessment",
-                "N/A — single-structure ligand pocket analysis. No mutation data was provided. "
-                "To assess mutation impact, use the Mutation Scan mode with a specific point mutation."
-            ),
-            _section("F. Biological Interpretation",
-                f"The {ligand_name} binding pocket contains {total} contact residues within 5 A. "
-                + (f"The extensive contact network suggests a well-defined binding cavity with high shape complementarity. "
-                   f"This architecture is consistent with a high-affinity binding site."
-                   if total >= 20 else
-                   f"A moderate contact network ({total} residues) suggests a semi-exposed binding site "
-                   f"that may accommodate ligand recognition while maintaining some solvent accessibility."
-                   if total >= 10 else
-                   f"A small contact set ({total} residues) suggests a shallow or surface-exposed binding site, "
-                   f"possibly a low-affinity interaction or cofactor binding region.")
-            ),
-            _section("G. Limitations",
-                "This interpretation is based on a static crystal structure. "
-                "No molecular dynamics simulation, binding free energy calculation, or quantum mechanical analysis was performed. "
-                "Interaction classification uses geometric criteria only (5 A contact cutoff, 4.0 A close-contact threshold). "
-                "Solvent effects, protonation states, ionic strength, and protein dynamics are not accounted for. "
-                "This is a heuristic structural analysis, not a validated binding prediction. "
-                "For quantitative assessment, consider MD simulation, MM-GBSA, or experimental binding assays."
-            ),
-        ]
-        return "\n\n".join(sections)
-
-    if mode == "mutation":
-        m = data.get("mutation_result", {})
-        original = m.get("original_residue", {})
-        mutant = m.get("mutant_residue", {})
-        property_changes = m.get("property_changes", {})
-        impact = m.get("interaction_impact", {})
-        loss = impact.get("possible_loss", [])
-        gain = impact.get("possible_gain", [])
-
-        loss_count = len(loss)
-        gain_count = len(gain)
-
-        if loss_count > 1:
-            confidence = "HIGH"
-            conf_reason = "multiple interaction types at risk of disruption"
-        elif loss_count == 1:
-            confidence = "MEDIUM"
-            conf_reason = "one interaction type at risk, but geometry may partially compensate"
-        elif gain_count > 0:
-            confidence = "MEDIUM"
-            conf_reason = "possible gain of new interactions, but depends on sidechain geometry"
-        else:
-            confidence = "LOW"
-            conf_reason = "no strong evidence of interaction disruption based on geometric analysis alone"
-
-        sections = [
-            _section("A. Executive Summary",
-                f"Mutation {m.get('mutation','?')} on chain {m.get('chain_id','?')} "
-                f"replaces {original.get('res_name','?')}{original.get('res_id','?')} with "
-                f"{mutant.get('res_name','?')}{mutant.get('res_id','?')}. "
-                f"Confidence: {confidence} — {conf_reason}."
-            ),
-            _section("B. Pocket Physicochemical Profile",
-                "Property changes: " +
-                "; ".join(f"{k}: {v}" for k, v in (property_changes or {}).items()) +
-                ". " +
-                (f"The {original.get('res_name','?')}->{mutant.get('res_name','?')} substitution significantly alters "
-                 f"the local physicochemical environment."
-                 if loss_count > 0 or gain_count > 0 else
-                 "The substitution does not strongly alter the local physicochemical profile based on the property analysis.")
-            ),
-            _section("C. Key Interaction Network",
-                f"{loss_count} possible interaction loss(es), {gain_count} possible interaction gain(s). "
-                + (f"Loss: {'; '.join(x.get('reason','?') for x in loss)}. " if loss else "")
-                + (f"Gain: {'; '.join(x.get('reason','?') for x in gain)}. " if gain else "")
-            ),
-            _section("D. Residue-Level Evidence",
-                "\n".join(
-                    f"- Chain {x.get('chain_id','?')}: {x.get('res_name','?')}{x.get('res_id','?')} "
-                    f"({x.get('atom_name','?')}) — {x.get('interaction_type','?')} — "
-                    f"{x.get('distance','?')} A — {x.get('reason','?')}"
-                    for x in loss
-                ) if loss else (
-                    "\n".join(
-                        f"- Chain {x.get('chain_id','?')}: {x.get('res_name','?')}{x.get('res_id','?')} "
-                        f"({x.get('atom_name','?')}) — {x.get('interaction_type','?')} — "
-                        f"{x.get('distance','?')} A"
-                        for x in m.get("original_interactions", [])[:10]
-                    ) if m.get("original_interactions") else "Insufficient structural evidence — no direct ligand interactions detected for this residue."
-                )
-            ),
-            _section("E. Mutation Impact Assessment",
-                f"Confidence: {confidence}. {conf_reason}. "
-                "This assessment is based on geometric interaction classification and physicochemical property comparison. "
-                "It does not account for sidechain remodeling, backbone rearrangement, or changes in solvation."
-            ),
-            _section("F. Biological Interpretation",
-                f"The {m.get('mutation','?')} mutation "
-                + ("may significantly weaken ligand binding due to loss of key interactions with the pocket."
-                   if confidence == "HIGH" else
-                   "may moderately affect ligand binding, though some interactions may be preserved or compensated."
-                   if confidence == "MEDIUM" else
-                   "is unlikely to strongly disrupt ligand binding based on the current structural analysis.")
-            ),
-            _section("G. Limitations",
-                "This is a heuristic mutation impact assessment. "
-                "No mutant sidechain remodeling, molecular dynamics, or free energy calculation was performed. "
-                "The analysis compares physicochemical properties and geometric interaction patterns only. "
-                "Solvent effects, protein dynamics, and allosteric effects are not modeled. "
-                "For quantitative prediction, consider alchemical free energy perturbation (FEP) or MD-based MM-GBSA."
-            ),
-        ]
-        return "\n\n".join(sections)
-
-    if mode == "comparison":
-        ligand_name = data.get("ligand_name", "unknown")
-        wt_cc = data.get("wt_contact_count", 0)
-        mut_cc = data.get("mut_contact_count", 0)
-        lost = data.get("lost", [])
-        gained = data.get("gained", [])
-        shared = data.get("shared", [])
-        wt_counts = data.get("wt_counts", {})
-        mut_counts = data.get("mut_counts", {})
-
-        lost_count = len(lost or [])
-        gained_count = len(gained or [])
-        shared_count = len(shared or [])
-
-        h_change = mut_counts.get("hydrophobic", 0) - wt_counts.get("hydrophobic", 0)
-
-        if lost_count > gained_count:
-            direction = "contraction / weakening"
-        elif gained_count > lost_count:
-            direction = "expansion / reorganization"
-        else:
-            direction = "local remodeling"
-
-        sections = [
-            _section("A. Executive Summary",
-                f"WT vs mutant comparison for {ligand_name} binding pocket. "
-                f"WT: {wt_cc} contacts, Mutant: {mut_cc} contacts. "
-                f"Lost: {lost_count}, Gained: {gained_count}, Shared: {shared_count}. "
-                f"Net effect: {direction}."
-            ),
-            _section("B. Pocket Physicochemical Profile",
-                f"WT — Hydrophobic: {wt_counts.get('hydrophobic',0)}, Polar: {wt_counts.get('polar',0)}, "
-                f"Positive: {wt_counts.get('positive',0)}, Negative: {wt_counts.get('negative',0)}. "
-                f"Mutant — Hydrophobic: {mut_counts.get('hydrophobic',0)}, Polar: {mut_counts.get('polar',0)}, "
-                f"Positive: {mut_counts.get('positive',0)}, Negative: {mut_counts.get('negative',0)}. "
-                f"Hydrophobic change: {h_change:+d}"
-                + (", indicating increased hydrophobic character."
-                   if h_change > 0 else ", indicating decreased hydrophobic character."
-                   if h_change < 0 else ", no net hydrophobic change.")
-            ),
-            _section("C. Key Interaction Network",
-                f"{shared_count} contacts preserved between WT and mutant. "
-                + (f"Lost contacts: {', '.join(f'{c}:{r}{i}' for c,r,i in (lost or [])[:10])}. "
-                   if lost_count else "No contacts lost. ")
-                + (f"Gained contacts: {', '.join(f'{c}:{r}{i}' for c,r,i in (gained or [])[:10])}. "
-                   if gained_count else "No new contacts gained. ")
-            ),
-            _section("D. Residue-Level Evidence",
-                "\n".join(
-                    [f"Lost residues:"] +
-                    [f"- Chain {c}: {r}{i}" for c, r, i in (lost or [])[:10]] +
-                    [f"Gained residues:"] +
-                    [f"- Chain {c}: {r}{i}" for c, r, i in (gained or [])[:10]] +
-                    [f"Shared residues (first 10):"] +
-                    [f"- Chain {c}: {r}{i}" for c, r, i in (shared or [])[:10]]
-                ) if (lost_count or gained_count or shared_count) else "Insufficient structural evidence — no residue-level differences detected."
-            ),
-            _section("E. Mutation Impact Assessment",
-                ("HIGH" if abs(lost_count - gained_count) >= 3 else
-                 "MEDIUM" if abs(lost_count - gained_count) >= 1 else "LOW") +
-                f" — the mutant shows {direction} of the {ligand_name} binding pocket "
-                f"with {lost_count} contacts lost and {gained_count} gained. "
-                "This assessment is based on contact comparison within 5 A cutoff only."
-            ),
-            _section("F. Biological Interpretation",
-                f"The mutant pocket {direction} suggests "
-                + ("possible weakening of ligand binding affinity. The lost contacts may reduce shape complementarity and interaction energy."
-                   if lost_count > gained_count else
-                   "possible expansion of the binding site. The gained contacts may create new interaction opportunities for the ligand."
-                   if gained_count > lost_count else
-                   "the overall binding geometry is maintained, with local residue-level remodeling rather than net gain or loss of contacts.")
-            ),
-            _section("G. Limitations",
-                "Comparison based on static crystal structures. No molecular dynamics or energy minimization was performed. "
-                "Contact comparison uses 5 A cutoff; subtle conformational changes beyond this radius are not captured. "
-                "Solvent, pH, and dynamics effects are not modeled. "
-                "For quantitative comparison, consider MD simulation or alchemical free energy calculations."
-            ),
-        ]
-        return "\n\n".join(sections)
-
-    if mode == "protein_only":
-        summary = data.get("summary", {})
-        counts = summary.get("residue_type_counts", {})
-        chains = summary.get("chains", [])
-        ligands = summary.get("ligand_candidates", [])
-
-        sections = [
-            _section("A. Executive Summary",
-                f"Protein-only structural overview. {summary.get('chain_count',0)} chain(s), "
-                f"{summary.get('residue_count',0)} residues, {summary.get('atom_count',0)} atoms. "
-                + (f"Ligands detected: {', '.join(ligands[:8])}."
-                   if ligands else "No non-water ligands detected.")
-            ),
-            _section("B. Pocket Physicochemical Profile",
-                f"Residue composition — Hydrophobic: {counts.get('hydrophobic',0)}, "
-                f"Polar: {counts.get('polar',0)}, Positive: {counts.get('positive',0)}, "
-                f"Negative: {counts.get('negative',0)}, Other: {counts.get('other',0)}. "
-                + ("The hydrophobic/polar ratio is consistent with a typical globular protein fold."
-                   if counts.get('hydrophobic', 0) > counts.get('polar', 0) else
-                   "The elevated polar content may indicate significant solvent exposure or a membrane/interface region.")
-            ),
-            _section("C. Key Interaction Network",
-                "N/A — protein-only analysis. No ligand was specified for pocket interaction analysis. "
-                + (f"Detected HETATM ligands ({', '.join(ligands[:8])}) may represent cofactors, substrates, "
-                   f"or crystallization additives. To analyze a binding pocket, specify a ligand name and re-run."
-                   if ligands else "To analyze a specific binding pocket, specify a ligand name and re-run the analysis.")
-            ),
-            _section("D. Residue-Level Evidence",
-                "\n".join(
-                    f"- Chain {c.get('chain_id','?')}: {c.get('residue_count',0)} residues, "
-                    f"{c.get('atom_count',0)} atoms, hydrophobic={c.get('hydrophobic',0)}, "
-                    f"polar={c.get('polar',0)}, charged={c.get('positive',0)+c.get('negative',0)}"
-                    for c in (chains or [])[:10]
-                ) if chains else "Insufficient structural evidence — no chain-level data available."
-            ),
-            _section("E. Mutation Impact Assessment",
-                "N/A — protein-only analysis. No mutation data was provided. "
-                "To assess mutation impact, use the Mutation Scan mode."
-            ),
-            _section("F. Biological Interpretation",
-                "Insufficient structural evidence to determine specific biological function. "
-                "Residue composition analysis provides compositional clues but cannot determine function "
-                "without ligand interaction data, evolutionary conservation, or experimental context."
-            ),
-            _section("G. Limitations",
-                "Protein-only analysis based on primary sequence composition and static crystal structure. "
-                "No ligand interaction analysis was performed. No secondary structure assignment (DSSP). "
-                "No homology modeling, functional site prediction, or evolutionary conservation analysis. "
-                "This is a compositional overview only. For functional insights, analyze a specific binding pocket "
-                "or perform comparative structural analysis."
-            ),
-        ]
-        return "\n\n".join(sections)
-
-    return f"## A. Executive Summary\nUnknown mode: {mode}\n\n## G. Limitations\nUnsupported analysis mode."
+    """Use SafetyGuardrails safe output template when DeepSeek is unavailable."""
+    from analysis_core import SafetyGuardrails
+    return SafetyGuardrails.safe_output_template(mode, data)
 
 
 def generate_structured_interpretation(mode, data):

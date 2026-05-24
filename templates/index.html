@@ -5,3944 +5,504 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Protein Structure Copilot</title>
 
+  <!-- 3Dmol.js -->
   <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
 
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-
-    :root {
-      --bg-page: #f1f5f9;
-      --bg-card: white;
-      --bg-header-start: #0f172a;
-      --bg-header-end: #1e293b;
-      --bg-input: white;
-      --bg-drop: #f8fafc;
-      --bg-drop-hover: #f0f7ff;
-      --bg-drop-file: #f0fdf4;
-      --bg-drop-error: #fef2f2;
-      --bg-placeholder: #f8fafc;
-      --bg-section: #f9fafb;
-      --text-primary: #1e293b;
-      --text-secondary: #334155;
-      --text-muted: #64748b;
-      --text-helper: #94a3b8;
-      --text-header-sub: #94a3b8;
-      --border-default: #e2e8f0;
-      --border-input: #d1d5db;
-      --border-drop: #cbd5e1;
-      --border-drop-hover: #93c5fd;
-      --border-drop-file: #22c55e;
-      --border-drop-error: #ef4444;
-      --border-tab: #e2e8f0;
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --primary-light: #eff6ff;
-      --primary-ring: rgba(37,99,235,0.12);
-      --shadow-card: 0 4px 24px rgba(0,0,0,0.06);
-      --shadow-drop: 0 4px 16px rgba(37,99,235,0.08);
-      --shadow-drop-file: 0 0 0 4px rgba(34,197,94,0.08), 0 8px 32px rgba(34,197,94,0.10);
-    }
-
-    .dark {
-      --bg-page: #0a0f1a;
-      --bg-card: #111827;
-      --bg-header-start: #090e18;
-      --bg-header-end: #111827;
-      --bg-input: #1e293b;
-      --bg-drop: #1e293b;
-      --bg-drop-hover: #1e3a5f;
-      --bg-drop-file: #0a2e1a;
-      --bg-drop-error: #2e0a0a;
-      --bg-placeholder: #1e293b;
-      --bg-section: #1e293b;
-      --text-primary: #e2e8f0;
-      --text-secondary: #cbd5e1;
-      --text-muted: #94a3b8;
-      --text-helper: #64748b;
-      --text-header-sub: #94a3b8;
-      --border-default: #1e293b;
-      --border-input: #334155;
-      --border-drop: #334155;
-      --border-drop-hover: #3b82f6;
-      --border-drop-file: #22c55e;
-      --border-drop-error: #ef4444;
-      --border-tab: #1e293b;
-      --primary: #3b82f6;
-      --primary-hover: #2563eb;
-      --primary-light: #1e3a5f;
-      --primary-ring: rgba(59,130,246,0.2);
-      --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
-      --shadow-drop: 0 4px 16px rgba(59,130,246,0.12);
-      --shadow-drop-file: 0 0 0 4px rgba(34,197,94,0.12), 0 8px 32px rgba(34,197,94,0.15);
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg-page);
-      margin: 0;
-      padding: 24px;
-      color: var(--text-primary);
-    }
-
-    .container {
-      max-width: 1300px;
-      margin: auto;
-      background: var(--bg-card);
-      border-radius: 20px;
-      box-shadow: var(--shadow-card);
-      overflow: hidden;
-    }
-
-    .header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: white;
-      padding: 32px 36px;
-    }
-
-    .header h1 {
-      margin: 0;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
-
-    .header p {
-      margin: 8px 0 0 0;
-      color: var(--text-header-sub);
-      font-size: 15px;
-    }
-
-    /* Stats counter */
-    .stats-counter {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 14px;
-      font-size: 14px;
-      color: #94a3b8;
-      font-weight: 500;
-      letter-spacing: 0.3px;
-    }
-
-    .stats-counter .counter-icon {
-      font-size: 16px;
-    }
-
-    .stats-counter .counter-value {
-      color: #60a5fa;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .stats-counter.skeleton .counter-value {
-      display: inline-block;
-      width: 50px;
-      height: 16px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 4px;
-      animation: shimmer 1.5s ease-in-out infinite;
-      vertical-align: text-bottom;
-    }
-
-    @keyframes shimmer {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 0.8; }
-    }
-
-    /* Recent analyses */
-    .recent-section {
-      margin-top: 32px;
-      padding: 20px 24px;
-      background: #0f172a;
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 14px;
-    }
-
-    .recent-section h3 {
-      margin: 0 0 16px 0;
-      font-size: 15px;
-      font-weight: 700;
-      color: #e2e8f0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .recent-section h3 .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #22c55e;
-      display: inline-block;
-      animation: pulse-dot 2s ease-in-out infinite;
-    }
-
-    .recent-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .recent-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      color: #cbd5e1;
-      background: rgba(255,255,255,0.03);
-      transition: background 0.2s;
-      overflow: hidden;
-    }
-
-    .recent-list.is-updating .recent-item {
-      animation: recentFade 420ms ease-out;
-    }
-
-    @keyframes recentFade {
-      from {
-        opacity: 0.55;
-        transform: translateY(3px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .recent-item:hover {
-      background: rgba(255,255,255,0.06);
-    }
-
-    .recent-item .ri-type {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 5px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .ri-type.single { background: rgba(59,130,246,0.2); color: #60a5fa; }
-    .ri-type.mutation { background: rgba(168,85,247,0.2); color: #c084fc; }
-    .ri-type.comparison { background: rgba(34,197,94,0.2); color: #4ade80; }
-
-    .recent-item .ri-body {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      overflow: hidden;
-    }
-
-    .recent-item .ri-pdb {
-      font-weight: 600;
-      color: #e2e8f0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .recent-item .ri-detail {
-      color: #94a3b8;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .recent-item .ri-time {
-      color: #64748b;
-      font-size: 12px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      margin-left: auto;
-    }
-
-    .recent-skeleton .ri-skel {
-      background: rgba(255,255,255,0.06);
-      border-radius: 6px;
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-
-    .dark-mode-toggle {
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: white;
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-
-    .dark-mode-toggle:hover {
-      background: rgba(255,255,255,0.2);
-      border-color: rgba(255,255,255,0.25);
-    }
-
-    .content { padding: 32px 36px; }
-
-    /* Tab navigation */
-    .tab-bar {
-      display: flex;
-      gap: 0;
-      border-bottom: 2px solid var(--border-tab);
-      margin-bottom: 28px;
-    }
-
-    .tab-btn {
-      padding: 12px 24px;
-      background: none;
-      border: none;
-      border-bottom: 3px solid transparent;
-      margin-bottom: -2px;
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: color 0.2s, border-color 0.2s;
-    }
-
-    .tab-btn:hover { color: var(--text-primary); }
-    .tab-btn.active {
-      color: var(--primary);
-      border-bottom-color: var(--primary);
-    }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* Form styling */
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-group label {
-      display: block;
-      font-weight: 600;
-      font-size: 14px;
-      margin-bottom: 6px;
-      color: var(--text-secondary);
-    }
-
-    .form-group .helper {
-      font-size: 12px;
-      color: var(--text-helper);
-      margin-top: 4px;
-    }
-
-    .skip-ligand-control {
-      display: inline-flex !important;
-      align-items: center;
-      gap: 8px;
-      margin-top: 10px;
-      margin-bottom: 0 !important;
-      color: var(--text-secondary);
-      cursor: pointer;
-    }
-
-    .skip-ligand-control input {
-      width: 16px;
-      height: 16px;
-      accent-color: var(--primary);
-    }
-
-    .info-box {
-      margin-top: 24px;
-      padding: 16px 18px;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      border-radius: 12px;
-      color: #1d4ed8;
-      font-weight: 600;
-    }
-
-    .structure-source-box {
-      max-width: 560px;
-      padding: 12px 14px;
-      background: var(--bg-section);
-      border: 1px solid var(--border-default);
-      border-radius: 8px;
-      color: var(--text-secondary);
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    .structure-source-box.ready {
-      border-color: var(--border-drop-file);
-      background: var(--bg-drop-file);
-      color: #15803d;
-    }
-
-    .structure-source-box.warning {
-      border-color: #fecaca;
-      background: #fef2f2;
-      color: #dc2626;
-    }
-
-    .shared-structure-file {
-      display: none;
-    }
-
-    .text-input {
-      padding: 10px 14px;
-      width: 100%;
-      max-width: 400px;
-      border: 1.5px solid var(--border-input);
-      border-radius: 8px;
-      font-size: 14px;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      background: var(--bg-input);
-      color: var(--text-primary);
-    }
-
-    .text-input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-ring);
-    }
-
-    /* Drop zone */
-    .drop-zone {
-      border: 2px dashed var(--border-drop);
-      border-radius: 16px;
-      padding: 36px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s, padding 0.3s;
-      background: var(--bg-drop);
-      position: relative;
-    }
-
-    .drop-zone:hover {
-      border-color: var(--border-drop-hover);
-      background: var(--bg-drop-hover);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-drop);
-    }
-
-    .drop-zone.drag-over {
-      border-color: var(--primary);
-      background: var(--primary-light);
-      transform: scale(1.01);
-      box-shadow: 0 0 0 8px var(--primary-ring);
-      border-style: solid;
-    }
-
-    .drop-zone.has-file {
-      border-color: var(--border-drop-file);
-      border-style: solid;
-      background: var(--bg-drop-file);
-      box-shadow: var(--shadow-drop-file);
-      padding: 28px 28px;
-      cursor: default;
-      animation: fileIn 0.35s ease-out;
-    }
-
-    @keyframes fileIn {
-      from { transform: scale(0.97); opacity: 0.7; }
-      to   { transform: scale(1);    opacity: 1; }
-    }
-
-    .drop-zone.has-file:hover {
-      transform: none;
-      box-shadow: var(--shadow-drop-file);
-    }
-
-    .drop-zone.has-error {
-      border-color: var(--border-drop-error);
-      border-style: solid;
-      background: var(--bg-drop-error);
-    }
-
-    .drop-zone-placeholder {
-      transition: opacity 0.15s;
-    }
-
-    .drop-zone-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 56px;
-      height: 56px;
-      background: var(--primary-light);
-      border-radius: 14px;
-      margin-bottom: 14px;
-      font-size: 28px;
-      transition: background 0.25s, transform 0.25s;
-      filter: brightness(0.95);
-    }
-
-    .dark .drop-zone-icon {
-      filter: brightness(1.2);
-    }
-
-    .drop-zone:hover .drop-zone-icon {
-      filter: brightness(0.9);
-      transform: scale(1.05);
-    }
-
-    .dark .drop-zone:hover .drop-zone-icon {
-      filter: brightness(1.3);
-    }
-
-    .drop-zone.drag-over .drop-zone-icon {
-      filter: brightness(0.88);
-      transform: scale(1.08);
-    }
-
-    .dark .drop-zone.drag-over .drop-zone-icon {
-      filter: brightness(1.4);
-    }
-
-    .drop-zone-text {
-      font-size: 15px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .drop-zone-text strong {
-      color: var(--primary);
-      font-weight: 600;
-    }
-
-    .drop-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-
-    .drop-zone.has-file input[type="file"] {
-      cursor: pointer;
-    }
-
-    /* ---- File card (shown when file selected) ---- */
-    .file-card {
-      display: none;
-      align-items: center;
-      gap: 18px;
-      text-align: left;
-    }
-
-    .drop-zone.has-file .file-card { display: flex; }
-    .drop-zone.has-file .drop-zone-placeholder { display: none; }
-
-    .file-card-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 60px;
-      height: 60px;
-      background: #22c55e;
-      border-radius: 16px;
-      font-size: 30px;
-      flex-shrink: 0;
-      box-shadow: 0 4px 12px rgba(34,197,94,0.25);
-    }
-
-    .file-card-body {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .file-card-filename {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-primary);
-      word-break: break-all;
-      line-height: 1.3;
-    }
-
-    .file-card-size {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .file-card-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #16a34a;
-    }
-
-    .file-card-status .check-circle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #22c55e;
-      color: white;
-      font-size: 10px;
-      font-weight: bold;
-    }
-
-    /* ---- Change hint ---- */
-    .file-change-hint {
-      display: none;
-      font-size: 12px;
-      color: var(--text-helper);
-      margin-top: 14px;
-      text-align: center;
-    }
-
-    .drop-zone.has-file .file-change-hint { display: block; }
-
-    /* ---- Remove button ---- */
-    .remove-file-btn {
-      display: none;
-      position: absolute;
-      top: 12px;
-      right: 14px;
-      background: none;
-      border: 1.5px solid var(--border-default);
-      color: var(--text-helper);
-      padding: 5px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      z-index: 2;
-    }
-
-    .remove-file-btn:hover {
-      border-color: #fecaca;
-      color: #dc2626;
-      background: #fef2f2;
-    }
-
-    .drop-zone.has-file .remove-file-btn { display: block; }
-
-    .file-size-warning {
-      display: none;
-      margin-top: 10px;
-      font-size: 12px;
-      color: #d97706;
-      background: #fef3c7;
-      padding: 6px 12px;
-      border-radius: 6px;
-      text-align: center;
-    }
-
-    .file-error {
-      display: none;
-      margin-top: 10px;
-      font-size: 12px;
-      color: #dc2626;
-      background: #fee2e2;
-      padding: 6px 12px;
-      border-radius: 6px;
-      text-align: center;
-    }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 15px;
-      cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
-    }
-
-    .btn:hover { background: #1d4ed8; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .btn-secondary { background: #7c3aed; }
-    .btn-secondary:hover { background: #6d28d9; }
-
-    .btn-outline {
-      background: white;
-      color: #2563eb;
-      border: 1.5px solid #2563eb;
-    }
-    .btn-outline:hover { background: #eff6ff; }
-
-    .download-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 12px;
-      margin-right: 8px;
-      padding: 10px 18px;
-      background: #0f172a;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 13px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .download-btn:hover { background: #1e293b; }
-    .download-btn.json { background: #059669; }
-    .download-btn.json:hover { background: #047857; }
-    .download-btn.csv { background: #0891b2; }
-    .download-btn.csv:hover { background: #0e7490; }
-
-    /* Main area grid */
-    .main-area {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(380px, 1fr);
-      gap: 24px;
-      margin-top: 24px;
-      align-items: start;
-    }
-
-    @media (max-width: 900px) {
-      .main-area { grid-template-columns: 1fr; }
-    }
-
-    /* Viewer */
-    .viewer-box {
-      width: 100%;
-      height: 560px;
-      border: 1px solid var(--border-default);
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-      background: var(--bg-card);
-    }
-
-    #viewer {
-      width: 100%;
-      height: 100%;
-      position: relative;
-    }
-
-    .viewer-tools {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-
-    .tool-btn {
-      background: #0f172a;
-      color: white;
-      padding: 9px 14px;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    .tool-btn:hover { background: #1e293b; }
-    .tool-btn.active { background: #2563eb; }
-
-    /* AI Dashboard */
-    .ai-dashboard {
-      background: #0f172a;
-      color: white;
-      padding: 20px;
-      border-radius: 16px;
-      max-height: 560px;
-      overflow: auto;
-      box-shadow: 0 8px 24px rgba(15,23,42,0.25);
-    }
-
-    .ai-dashboard-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 18px;
-    }
-
-    .ai-card {
-      background: #111827;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 14px;
-    }
-
-    .ai-card h3 {
-      margin: 0 0 10px 0;
-      color: #60a5fa;
-      font-size: 15px;
-    }
-
-    .ai-card p,
-    .ai-card li {
-      color: #e5e7eb;
-      line-height: 1.65;
-      font-size: 14px;
-    }
-
-    .ai-card ul {
-      margin: 0;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .hotspot-btn {
-      width: 100%;
-      text-align: left;
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.08);
-      color: white;
-      padding: 10px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      margin-bottom: 8px;
-      transition: background 0.2s, transform 0.2s;
-      font-size: 14px;
-    }
-
-    .hotspot-btn:hover {
-      background: #334155;
-      transform: translateX(3px);
-    }
-
-    .hotspot-rank {
-      color: #f59e0b;
-      font-weight: bold;
-      margin-right: 6px;
-    }
-
-    .raw-report {
-      margin-top: 14px;
-      background: #020617;
-      color: #cbd5e1;
-      padding: 14px;
-      border-radius: 12px;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      font-family: Menlo, Monaco, Consolas, monospace;
-      font-size: 12px;
-      max-height: 180px;
-      overflow: auto;
-    }
-
-    .comparison-box {
-      background: #1e1b4b;
-      color: white;
-      padding: 20px;
-      border-radius: 12px;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      overflow: auto;
-      margin-top: 20px;
-      font-family: Menlo, Monaco, Consolas, monospace;
-      font-size: 14px;
-    }
-
-    .placeholder {
-      margin-top: 24px;
-      padding: 32px;
-      background: var(--bg-placeholder);
-      border: 2px dashed var(--border-default);
-      border-radius: 12px;
-      color: var(--text-muted);
-      text-align: center;
-      font-size: 15px;
-    }
-
-    .error-box {
-      margin-top: 24px;
-      padding: 16px 18px;
-      background: var(--bg-drop-error);
-      border: 1px solid var(--border-drop-error);
-      border-radius: 12px;
-      color: #991b1b;
-      font-weight: 600;
-    }
-
-    .section-divider {
-      margin-top: 50px;
-      margin-bottom: 30px;
-      border-top: 2px solid var(--border-default);
-    }
-
-    /* Legend */
-    .legend {
-      margin-top: 10px;
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.8;
-    }
-
-    .yellow-dot, .red-dot, .green-dot, .orange-dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #999;
-      border-radius: 50%;
-      margin-right: 6px;
-    }
-
-    .yellow-dot { background: yellow; }
-    .red-dot { background: red; }
-    .green-dot { background: limegreen; }
-    .orange-dot { background: orange; }
-
-    .blue-dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #999;
-      border-radius: 50%;
-      margin-right: 6px;
-      background: #38bdf8;
-    }
-
-    .lime-dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #999;
-      border-radius: 50%;
-      margin-right: 6px;
-      background: #a3e635;
-    }
-
-    details summary {
-      cursor: pointer;
-      color: #93c5fd;
-      font-weight: bold;
-      margin-top: 8px;
-    }
-
-    /* Loading overlay (fallback for non-AJAX forms) */
-    .loading-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(15,23,42,0.7);
-      z-index: 9999;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .loading-overlay.active { display: flex; }
-
-    .spinner {
-      width: 44px;
-      height: 44px;
-      border: 4px solid rgba(255,255,255,0.2);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-text {
-      color: white;
-      font-weight: 600;
-      font-size: 16px;
-    }
-
-    /* Progress panel */
-    .progress-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(15,23,42,0.75);
-      z-index: 9999;
-      justify-content: center;
-      align-items: center;
-      backdrop-filter: blur(4px);
-    }
-
-    .progress-overlay.active { display: flex; }
-
-    .progress-panel {
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 20px;
-      padding: 40px 44px;
-      width: 440px;
-      max-width: 92vw;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.45);
-    }
-
-    .progress-title {
-      color: white;
-      font-size: 18px;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 32px;
-      letter-spacing: -0.2px;
-    }
-
-    .progress-stages {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-
-    .progress-stage {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      color: #475569;
-      font-size: 14px;
-      transition: color 0.3s;
-    }
-
-    .progress-stage.active {
-      color: white;
-    }
-
-    .progress-stage.done {
-      color: #64748b;
-    }
-
-    .stage-icon {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: all 0.3s;
-    }
-
-    .progress-stage.pending .stage-icon {
-      border: 2px solid #334155;
-      background: transparent;
-    }
-
-    .progress-stage.active .stage-icon {
-      border: 2px solid #60a5fa;
-      background: rgba(96,165,250,0.15);
-      box-shadow: 0 0 12px rgba(96,165,250,0.25);
-    }
-
-    .progress-stage.done .stage-icon {
-      border: 2px solid #22c55e;
-      background: rgba(34,197,94,0.15);
-    }
-
-    .stage-icon-inner {
-      font-size: 11px;
-      line-height: 1;
-    }
-
-    .progress-stage.active .stage-icon-inner {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #60a5fa;
-      animation: pulse-dot 1.2s ease-in-out infinite;
-    }
-
-    .progress-stage.done .stage-icon-inner {
-      color: #22c55e;
-      font-weight: bold;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.65); }
-    }
-
-    .progress-bar-track {
-      width: 100%;
-      height: 4px;
-      background: #334155;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #2563eb, #60a5fa);
-      border-radius: 2px;
-      transition: width 0.4s ease;
-      width: 0%;
-    }
-
-    .progress-done-message {
-      display: none;
-      text-align: center;
-      color: #22c55e;
-      font-weight: 600;
-      font-size: 14px;
-      margin-top: 16px;
-      animation: fadeInUp 0.4s ease;
-    }
-
-    .progress-done-message.show { display: block; }
-
-    .progress-error-message {
-      display: none;
-      text-align: center;
-      color: #f87171;
-      font-weight: 600;
-      font-size: 14px;
-      margin-top: 16px;
-    }
-
-    .progress-error-message.show { display: block; }
-
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Fade in results */
-    .results-container {
-      transition: opacity 0.5s ease;
-    }
-
-    .results-container.fade-in {
-      animation: fadeInUp 0.5s ease;
-    }
-
-    /* Mutation result cards */
-    .mutation-card-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    @media (max-width: 600px) {
-      .mutation-card-grid { grid-template-columns: 1fr; }
-      .header { padding: 24px 20px; }
-      .content { padding: 20px; }
-      .tab-btn { padding: 10px 14px; font-size: 13px; }
-    }
-  </style>
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-
 <body>
-  <!-- Loading overlay (fallback) -->
-  <div class="loading-overlay" id="loading-overlay">
-    <div class="spinner"></div>
-    <div class="loading-text">Analyzing structure...</div>
-  </div>
 
-  <!-- Progress panel -->
-  <div class="progress-overlay" id="progress-overlay">
-    <div class="progress-panel">
-      <div class="progress-title" id="progress-title">Analyzing Structure</div>
-      <div class="progress-stages" id="progress-stages">
-        <div class="progress-stage pending" data-stage="0">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>Reading PDB structure</span>
-        </div>
-        <div class="progress-stage pending" data-stage="1">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>Detecting ligands</span>
-        </div>
-        <div class="progress-stage pending" data-stage="2">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>Calculating pocket contacts</span>
-        </div>
-        <div class="progress-stage pending" data-stage="3">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>Generating interaction data</span>
-        </div>
-        <div class="progress-stage pending" data-stage="4">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>Preparing 3D visualization</span>
-        </div>
-        <div class="progress-stage pending" data-stage="5">
-          <div class="stage-icon"><span class="stage-icon-inner"></span></div>
-          <span>AI structural interpretation</span>
-        </div>
+<!-- ===============================================================
+     PROGRESS OVERLAY
+     =============================================================== -->
+<div class="progress-overlay" id="progress-overlay">
+  <div class="progress-panel">
+    <div class="progress-title" id="progress-title">Analyzing Structure</div>
+    <div class="progress-stages" id="progress-stages">
+      {% set stages = ['Reading PDB structure', 'Detecting ligands', 'Calculating pocket contacts', 'Generating interaction data', 'Preparing 3D visualization', 'AI structural interpretation'] %}
+      {% for text in stages %}
+      <div class="progress-stage pending" data-stage="{{ loop.index0 }}">
+        <div class="stage-icon"><span class="stage-icon-inner"></span></div>
+        <span>{{ text }}</span>
       </div>
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="progress-bar-fill"></div>
-      </div>
-      <div class="progress-done-message" id="progress-done-message">Analysis complete</div>
-      <div class="progress-error-message" id="progress-error-message"></div>
+      {% endfor %}
     </div>
-  </div>
-
-  <div class="container">
-
-    <!-- Header -->
-    <div class="header">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h1>Protein Structure Copilot</h1>
-          <div class="stats-counter skeleton" id="stats-counter">
-            <span class="counter-icon">🧬</span>
-            Total analyses since launch:
-            <span class="counter-value">0</span>
-          </div>
-          <p style="margin-top: 12px;">Protein-ligand binding pocket analysis with AI-powered interpretation and 3D visualization</p>
-        </div>
-        <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
-          <span class="dark-mode-icon">🌙</span>
-        </button>
-      </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-bar-fill"></div>
     </div>
+    <div class="progress-done-msg" id="progress-done-message">Analysis complete</div>
+    <div class="progress-error-msg" id="progress-error-message"></div>
+  </div>
+</div>
 
-    <div class="content">
+<!-- ===============================================================
+     APP SHELL
+     =============================================================== -->
+<div class="app-shell">
 
-      <!-- Tab navigation -->
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="tab-single">Single Structure Analysis</button>
-        <button class="tab-btn" data-tab="tab-mutation">Mutation Scan</button>
-        <button class="tab-btn" data-tab="tab-compare">WT vs Mutant Comparison</button>
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="header-logo">&#x1F9EC;</div>
+      <span class="header-title">Protein Structure Copilot</span>
+      <span class="header-subtitle">AI-Powered Structural Biology</span>
+    </div>
+    <div class="header-actions">
+      <div class="stats-badge">
+        <span>&#x1F4CA;</span>
+        <span>Analyses:</span>
+        <span class="count" id="stats-count">0</span>
       </div>
+      <button class="theme-toggle" id="dark-mode-toggle" title="Toggle theme">&#x263D;</button>
+    </div>
+  </header>
 
-      <!-- Tab: Single Structure Analysis -->
-      <div class="tab-panel active" id="tab-single">
-        <form action="/analyze" method="post" enctype="multipart/form-data" class="analysis-form" novalidate>
-          <input type="hidden" name="pdb_filename" id="pdb-filename-hidden" value="">
+  <!-- MAIN -->
+  <main class="app-main">
 
-          <div class="form-group">
-            <label>PDB ID (RCSB)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="pdb-id-input" class="text-input"
-                     placeholder="e.g. 1HSG" style="max-width:160px;text-transform:uppercase;"
-                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
-              <button type="button" id="fetch-pdb-btn" class="btn-outline"
-                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
-                Fetch from RCSB
-              </button>
-              <span id="fetch-status" style="font-size:13px;"></span>
-            </div>
-            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
-          </div>
+    <!-- LEFT: Copilot Panel -->
+    <aside class="copilot-panel">
+      <div class="copilot-scroll">
 
-          <div class="form-group">
-            <label>Or Upload PDB File</label>
-            <div class="drop-zone" id="drop-zone-analyze">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a PDB file</strong> or drag it here
-                </div>
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+          <div class="mode-label">Analysis Mode</div>
+          <div class="mode-group">
+            <div class="mode-option active" data-mode="single">
+              <div class="mode-radio"></div>
+              <div class="mode-info">
+                <div class="mode-name">Single Structure Analysis</div>
+                <div class="mode-desc">Ligand pocket detection, contact residues, AI interpretation</div>
               </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> PDB file ready for analysis
-                  </div>
-                </div>
+            </div>
+            <div class="mode-option" data-mode="mutation">
+              <div class="mode-radio"></div>
+              <div class="mode-info">
+                <div class="mode-name">Mutation Scan</div>
+                <div class="mode-desc">Point mutation impact on ligand binding pocket</div>
               </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="pdb_file" accept=".pdb">
             </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
-          </div>
-
-          <div class="form-group">
-            <label for="ligand-analyze">Ligand Name</label>
-            <input type="text" id="ligand-analyze" class="text-input"
-                   name="ligand_name" placeholder="e.g. MK1 / CLR" list="ligand-candidates" required>
-            <datalist id="ligand-candidates"></datalist>
-            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
-            <label class="skip-ligand-control" for="skip-ligand-mode">
-              <input type="checkbox" id="skip-ligand-mode">
-              Skip ligand mode
-            </label>
-            <div class="helper">Use for protein-only structures. Ligand pocket analysis is skipped.</div>
-          </div>
-
-          <div id="analysis-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
-
-          <button type="submit" class="btn" id="analyze-structure-btn" onclick="console.log('ANALYZE BUTTON CLICKED');console.log('  button disabled:',this.disabled);console.log('  form id:',this.closest('form')?.id);console.log('  ligand:',document.getElementById('ligand-analyze')?.value);console.log('  analysisFile:',window.PSCAnalysisFile);console.log('  analysisMode:',(function(){var s=document.getElementById('skip-ligand-mode');return s&&s.checked?'protein_only':'ligand'})());">
-            <span class="btn-label">Analyze Structure</span>
-          </button>
-        </form>
-      </div>
-
-      <!-- Tab: Mutation Scan -->
-      <div class="tab-panel" id="tab-mutation">
-        <form action="/mutation_scan" method="post" enctype="multipart/form-data" class="analysis-form">
-          <input type="hidden" name="pdb_filename" class="shared-pdb-filename" value="">
-          <input type="file" name="pdb_file" class="shared-structure-file" accept=".pdb" tabindex="-1">
-          <div class="form-group">
-            <label>PDB ID (RCSB)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="mutation-pdb-id-input" class="text-input"
-                     placeholder="e.g. 1TSR" style="max-width:160px;text-transform:uppercase;"
-                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
-              <button type="button" id="mutation-fetch-pdb-btn" class="btn-outline"
-                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
-                Fetch from RCSB
-              </button>
-              <span id="mutation-fetch-status" style="font-size:13px;"></span>
-            </div>
-            <div class="helper">Enter a 4-character PDB ID to download directly from RCSB.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Current Structure</label>
-            <div class="structure-source-box warning" id="mutation-structure-source">
-              Please load a structure from RCSB or upload a local PDB file first.
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="ligand-mutation">Ligand Name</label>
-            <input type="text" id="ligand-mutation" class="text-input"
-                   name="mutation_ligand_name" placeholder="e.g. MK1 / CLR" required>
-            <div class="helper">Enter the 3-letter residue name of the ligand in your PDB file.</div>
-          </div>
-
-          <div class="form-group">
-            <label for="mutation-text">Mutation</label>
-            <input type="text" id="mutation-text" class="text-input"
-                   name="mutation_text" placeholder="e.g. R273H / K120A / Y220C" required>
-            <div class="helper">Single-letter code: wild-type residue, position, mutant residue.</div>
-          </div>
-
-          <div class="form-group">
-            <label for="chain-id">Chain ID (optional)</label>
-            <input type="text" id="chain-id" class="text-input"
-                   name="mutation_chain_id" placeholder="e.g. A">
-            <div class="helper">Specify a chain if your PDB contains multiple chains.</div>
-          </div>
-
-          <button type="submit" class="btn btn-secondary">
-            <span class="btn-label">Analyze Mutation</span>
-          </button>
-        </form>
-      </div>
-
-      <!-- Tab: WT vs Mutant Comparison -->
-      <div class="tab-panel" id="tab-compare">
-        <form action="/compare" method="post" enctype="multipart/form-data" class="analysis-form">
-          <input type="hidden" name="wt_pdb_filename" id="wt-pdb-filename-hidden" value="">
-          <input type="hidden" name="mut_pdb_filename" id="mut-pdb-filename-hidden" value="">
-
-          <div class="form-group">
-            <label>WT Structure: PDB ID (RCSB)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="wt-pdb-id-input" class="text-input"
-                     placeholder="e.g. 7VV4" style="max-width:160px;text-transform:uppercase;"
-                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
-              <button type="button" id="wt-fetch-pdb-btn" class="btn-outline"
-                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
-                Fetch WT from RCSB
-              </button>
-              <span id="wt-fetch-status" style="font-size:13px;"></span>
-            </div>
-            <div class="helper">Enter a 4-character WT PDB ID to download directly from RCSB.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Upload WT PDB</label>
-            <div class="drop-zone" id="drop-zone-wt">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a WT PDB file</strong> or drag it here
-                </div>
+            <div class="mode-option" data-mode="compare">
+              <div class="mode-radio"></div>
+              <div class="mode-info">
+                <div class="mode-name">WT vs Mutant Comparison</div>
+                <div class="mode-desc">Compare two structures side by side</div>
               </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> WT PDB file ready
-                  </div>
-                </div>
-              </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="wt_file" accept=".pdb">
-            </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
-          </div>
-
-          <div class="form-group">
-            <label>WT Loaded Status</label>
-            <div class="structure-source-box warning" id="wt-structure-source">
-              Please load WT structure from RCSB or upload a local WT PDB file first.
             </div>
           </div>
-
-          <div class="form-group">
-            <label>Mutant Structure: PDB ID (RCSB)</label>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="text" id="mut-pdb-id-input" class="text-input"
-                     placeholder="e.g. 7VV4" style="max-width:160px;text-transform:uppercase;"
-                     pattern="[A-Za-z0-9]{4}" maxlength="4" autocomplete="off">
-              <button type="button" id="mut-fetch-pdb-btn" class="btn-outline"
-                      style="padding:10px 18px;font-size:14px;white-space:nowrap;">
-                Fetch Mutant from RCSB
-              </button>
-              <span id="mut-fetch-status" style="font-size:13px;"></span>
-            </div>
-            <div class="helper">Enter a 4-character mutant PDB ID to download directly from RCSB.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Upload Mutant PDB</label>
-            <div class="drop-zone" id="drop-zone-mut">
-              <button type="button" class="remove-file-btn">✕ Remove</button>
-              <div class="drop-zone-placeholder">
-                <div class="drop-zone-icon">🧬</div>
-                <div class="drop-zone-text">
-                  <strong>Choose a mutant PDB file</strong> or drag it here
-                </div>
-              </div>
-              <div class="file-card">
-                <div class="file-card-icon">🧬</div>
-                <div class="file-card-body">
-                  <div class="file-card-filename"></div>
-                  <div class="file-card-size"></div>
-                  <div class="file-card-status">
-                    <span class="check-circle">✓</span> Mutant PDB file ready
-                  </div>
-                </div>
-              </div>
-              <div class="file-change-hint">Click or drag to change file</div>
-              <input type="file" name="mut_file" accept=".pdb">
-            </div>
-            <div class="file-size-warning">File is over 10 MB &mdash; processing may take longer.</div>
-            <div class="file-error">Only .pdb files are supported.</div>
-          </div>
-
-          <div class="form-group">
-            <label>Mutant Loaded Status</label>
-            <div class="structure-source-box warning" id="mut-structure-source">
-              Please load Mutant structure from RCSB or upload a local Mutant PDB file first.
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="ligand-compare">Ligand Name</label>
-            <input type="text" id="ligand-compare" class="text-input"
-                   name="compare_ligand_name" placeholder="e.g. MK1 / CLR" required>
-            <div class="helper">Enter the 3-letter residue name of the ligand in both PDB files.</div>
-          </div>
-
-          <div id="compare-status" style="margin-top:14px;font-size:14px;font-weight:600;"></div>
-
-          <button type="submit" class="btn btn-secondary">
-            <span class="btn-label">Compare Mutation</span>
-          </button>
-        </form>
-      </div>
-
-      {% set result_mode = analysis_mode | default('', true) %}
-      {% if mutation_scan_result %}
-        {% set result_mode = 'mutation' %}
-      {% elif comparison_text %}
-        {% set result_mode = 'comparison' %}
-      {% endif %}
-
-      <!-- Recent Analyses -->
-      <div class="recent-section recent-skeleton" id="recent-section">
-        <h3><span class="dot"></span> Recent Analyses</h3>
-        <div class="recent-list" id="recent-list">
-          <div class="recent-item"><span class="ri-skel" style="width:60%;height:14px;"></span></div>
-          <div class="recent-item"><span class="ri-skel" style="width:45%;height:14px;"></span></div>
-          <div class="recent-item"><span class="ri-skel" style="width:55%;height:14px;"></span></div>
-          <div class="recent-item"><span class="ri-skel" style="width:40%;height:14px;"></span></div>
-          <div class="recent-item"><span class="ri-skel" style="width:50%;height:14px;"></span></div>
         </div>
-      </div>
 
-      <div id="results-root" data-result-mode="{{ result_mode or 'empty' }}">
-      {% if pdb_url %}
+        <!-- =========================================== -->
+        <!-- Panel: Single Structure Analysis            -->
+        <!-- =========================================== -->
+        <div class="input-panel" id="panel-single">
+          <form id="form-single" enctype="multipart/form-data">
+            <input type="hidden" name="pdb_filename" id="pdb-filename-hidden" value="">
 
-        <div class="main-area results-container fade-in" id="results-container" data-result-mode="{{ result_mode }}">
-
-          <div>
-            <h2>3D Structure Viewer</h2>
-
-            <div class="viewer-box">
-              <div id="viewer"></div>
+            <!-- PDB ID -->
+            <div class="input-section">
+              <div class="input-label">PDB ID (RCSB)</div>
+              <div class="pdb-id-row">
+                <input type="text" id="pdb-id-input" class="text-input"
+                       placeholder="e.g. 1HSG" maxlength="4" autocomplete="off"
+                       pattern="[A-Za-z0-9]{4}" style="text-transform:uppercase;">
+                <button type="button" id="fetch-pdb-btn" class="btn btn-secondary">Fetch</button>
+              </div>
+              <div id="fetch-status" class="status-msg"></div>
             </div>
 
-            <div class="viewer-tools">
-              <button class="tool-btn" id="reset-view-btn">Reset View</button>
-              <button class="tool-btn" id="pocket-view-btn">Focus Ligand</button>
-              <button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>
-              <button class="tool-btn" id="surface-toggle-btn">Show Pocket Surface</button>
+            <!-- Separator -->
+            <div class="input-separator">or</div>
+
+            <!-- File Upload -->
+            <div class="input-section">
+              <div class="input-label">Upload PDB File</div>
+              <div class="drop-zone" id="drop-zone-analyze">
+                <button type="button" class="remove-file-btn">Remove</button>
+                <div class="drop-zone-placeholder">
+                  <div class="drop-zone-icon">&#x1F9EC;</div>
+                  <div class="drop-zone-text">
+                    <strong>Choose a PDB file</strong> or drag it here
+                  </div>
+                </div>
+                <div class="file-card">
+                  <div class="file-card-icon">&#x1F9EC;</div>
+                  <div class="file-card-body">
+                    <div class="file-card-filename"></div>
+                    <div class="file-card-size"></div>
+                    <div class="file-card-status">
+                      &#x2713; PDB file ready for analysis
+                    </div>
+                  </div>
+                </div>
+                <div class="file-change-hint">Click or drag to change file</div>
+                <input type="file" name="pdb_file" accept=".pdb">
+              </div>
+              <div class="file-size-warning status-msg warning" style="display:none;">File is over 10 MB — processing may take longer.</div>
+              <div class="file-error-msg" style="display:none;">Only .pdb files are supported.</div>
             </div>
 
-            <div class="legend">
-              <div><span class="yellow-dot"></span> Yellow = hydrophobic interaction lines</div>
-              <div><span class="blue-dot"></span> Blue = polar / possible H-bond lines</div>
-              <div><span class="lime-dot"></span> Lime = van der Waals interaction lines</div>
-              <div><span class="orange-dot"></span> Orange = AI hotspot residues</div>
-              <div><span class="red-dot"></span> Red = lost WT contact residues</div>
-              <div><span class="green-dot"></span> Green = gained mutant contact residues</div>
+            <!-- Ligand -->
+            <div class="input-section">
+              <div class="input-label">Ligand Name</div>
+              <div class="ligand-row">
+                <input type="text" id="ligand-analyze" class="text-input"
+                       name="ligand_name" placeholder="e.g. MK1 / CLR" list="ligand-candidates" required>
+                <datalist id="ligand-candidates"></datalist>
+              </div>
+              <label class="skip-ligand-option" for="skip-ligand-mode">
+                <input type="checkbox" id="skip-ligand-mode">
+                Skip ligand (protein-only mode)
+              </label>
             </div>
-          </div>
 
-          <div>
+            <div id="analysis-status" class="status-msg"></div>
+
+            <button type="submit" class="analyze-btn" id="analyze-btn-single">
+              Analyze Structure
+            </button>
+          </form>
+        </div>
+
+        <!-- =========================================== -->
+        <!-- Panel: Mutation Scan                        -->
+        <!-- =========================================== -->
+        <div class="input-panel" id="panel-mutation" style="display:none;">
+          <form id="form-mutation" enctype="multipart/form-data">
+            <input type="hidden" name="pdb_filename" id="mutation-pdb-filename-hidden" value="">
+
+            <!-- PDB ID -->
+            <div class="input-section">
+              <div class="input-label">PDB ID (RCSB)</div>
+              <div class="pdb-id-row">
+                <input type="text" id="mutation-pdb-id-input" class="text-input"
+                       placeholder="e.g. 1TSR" maxlength="4" autocomplete="off"
+                       pattern="[A-Za-z0-9]{4}" style="text-transform:uppercase;">
+                <button type="button" id="mutation-fetch-pdb-btn" class="btn btn-secondary">Fetch</button>
+              </div>
+              <div id="mutation-fetch-status" class="status-msg"></div>
+            </div>
+
+            <div class="input-separator">or</div>
+
+            <!-- Shared structure indicator -->
+            <div class="input-section">
+              <div class="input-label">Loaded Structure</div>
+              <div id="mutation-structure-source" class="status-msg warning">
+                Load a structure first (RCSB or upload)
+              </div>
+            </div>
+
+            <!-- Ligand -->
+            <div class="input-section">
+              <div class="input-label">Ligand Name</div>
+              <input type="text" id="ligand-mutation" class="text-input"
+                     name="mutation_ligand_name" placeholder="e.g. MK1 / CLR" required>
+            </div>
+
+            <!-- Mutation -->
+            <div class="input-section">
+              <div class="input-label">Mutation</div>
+              <input type="text" id="mutation-text" class="text-input"
+                     name="mutation_text" placeholder="e.g. R273H / K120A / Y220C" required
+                     style="text-transform:uppercase;font-family:'JetBrains Mono',monospace;">
+            </div>
+
+            <!-- Chain -->
+            <div class="input-section">
+              <div class="input-label">Chain ID (optional)</div>
+              <input type="text" id="chain-id-mutation" class="text-input"
+                     name="mutation_chain_id" placeholder="e.g. A">
+            </div>
+
+            <div id="mutation-status" class="status-msg"></div>
+
+            <button type="submit" class="analyze-btn" style="background:#7c3aed;" id="analyze-btn-mutation">
+              Analyze Mutation
+            </button>
+          </form>
+        </div>
+
+        <!-- =========================================== -->
+        <!-- Panel: WT vs Mutant Comparison              -->
+        <!-- =========================================== -->
+        <div class="input-panel" id="panel-compare" style="display:none;">
+          <form id="form-compare" enctype="multipart/form-data">
+            <input type="hidden" name="wt_pdb_filename" id="wt-pdb-filename-hidden" value="">
+            <input type="hidden" name="mut_pdb_filename" id="mut-pdb-filename-hidden" value="">
+
+            <!-- WT -->
+            <div class="input-section">
+              <div class="input-label">WT: PDB ID (RCSB)</div>
+              <div class="pdb-id-row">
+                <input type="text" id="wt-pdb-id-input" class="text-input"
+                       placeholder="e.g. 7VV4" maxlength="4" autocomplete="off"
+                       pattern="[A-Za-z0-9]{4}" style="text-transform:uppercase;">
+                <button type="button" id="wt-fetch-pdb-btn" class="btn btn-secondary">Fetch WT</button>
+              </div>
+              <div id="wt-fetch-status" class="status-msg"></div>
+            </div>
+
+            <div class="input-section">
+              <div class="input-label">Upload WT PDB</div>
+              <div class="drop-zone" id="drop-zone-wt">
+                <button type="button" class="remove-file-btn">Remove</button>
+                <div class="drop-zone-placeholder">
+                  <div class="drop-zone-icon">&#x1F9EC;</div>
+                  <div class="drop-zone-text">
+                    <strong>Choose a WT PDB file</strong> or drag it here
+                  </div>
+                </div>
+                <div class="file-card">
+                  <div class="file-card-icon">&#x1F9EC;</div>
+                  <div class="file-card-body">
+                    <div class="file-card-filename"></div>
+                    <div class="file-card-size"></div>
+                    <div class="file-card-status">&#x2713; WT PDB file ready</div>
+                  </div>
+                </div>
+                <div class="file-change-hint">Click or drag to change file</div>
+                <input type="file" name="wt_file" accept=".pdb">
+              </div>
+              <div id="wt-structure-source" class="status-msg warning" style="margin-top:8px;">
+                Load WT structure (RCSB or upload)
+              </div>
+            </div>
+
+            <!-- Mutant -->
+            <div class="comp-section">
+              <div class="comp-label">Mutant Structure</div>
+              <div class="input-section" style="margin-top:12px;">
+                <div class="input-label">Mutant: PDB ID (RCSB)</div>
+                <div class="pdb-id-row">
+                  <input type="text" id="mut-pdb-id-input" class="text-input"
+                         placeholder="e.g. 7VV4" maxlength="4" autocomplete="off"
+                         pattern="[A-Za-z0-9]{4}" style="text-transform:uppercase;">
+                  <button type="button" id="mut-fetch-pdb-btn" class="btn btn-secondary">Fetch Mut</button>
+                </div>
+                <div id="mut-fetch-status" class="status-msg"></div>
+              </div>
+
+              <div class="input-section">
+                <div class="input-label">Upload Mutant PDB</div>
+                <div class="drop-zone" id="drop-zone-mut">
+                  <button type="button" class="remove-file-btn">Remove</button>
+                  <div class="drop-zone-placeholder">
+                    <div class="drop-zone-icon">&#x1F9EC;</div>
+                    <div class="drop-zone-text">
+                      <strong>Choose a Mutant PDB file</strong> or drag it here
+                    </div>
+                  </div>
+                  <div class="file-card">
+                    <div class="file-card-icon">&#x1F9EC;</div>
+                    <div class="file-card-body">
+                      <div class="file-card-filename"></div>
+                      <div class="file-card-size"></div>
+                      <div class="file-card-status">&#x2713; Mutant PDB file ready</div>
+                    </div>
+                  </div>
+                  <div class="file-change-hint">Click or drag to change file</div>
+                  <input type="file" name="mut_file" accept=".pdb">
+                </div>
+                <div id="mut-structure-source" class="status-msg warning" style="margin-top:8px;">
+                  Load mutant structure (RCSB or upload)
+                </div>
+              </div>
+            </div>
+
+            <!-- Ligand -->
+            <div class="input-section" style="margin-top:16px;">
+              <div class="input-label">Ligand Name</div>
+              <input type="text" id="ligand-compare" class="text-input"
+                     name="compare_ligand_name" placeholder="e.g. MK1 / CLR" required>
+            </div>
+
+            <div id="compare-status" class="status-msg"></div>
+
+            <button type="submit" class="analyze-btn" style="background:#7c3aed;" id="analyze-btn-compare">
+              Compare Mutation
+            </button>
+          </form>
+        </div>
+
+        <!-- =========================================== -->
+        <!-- Results Area                                -->
+        <!-- =========================================== -->
+        <div class="results-area" id="results-area"></div>
+        <div id="analysis-error" class="error-box" style="display:none;"></div>
+        <div id="results-placeholder" class="placeholder-msg">
+          Select an analysis mode, load a structure, and click Analyze to begin.
+        </div>
+
+        {% set result_mode = analysis_mode | default('', true) %}
+        {% if mutation_scan_result %}
+          {% set result_mode = 'mutation' %}
+        {% elif comparison_text %}
+          {% set result_mode = 'comparison' %}
+        {% endif %}
+
+        {# Server-rendered results (non-JS fallback + initial page load) #}
+        <div id="results-root" data-result-mode="{{ result_mode or 'empty' }}">
+        {% if pdb_url %}
+          <div class="results-area" style="border-top:none;margin-top:0;">
             {% if result_mode == 'mutation' and mutation_scan_result %}
               <h2>Mutation Analysis Result</h2>
-
-              <div class="ai-dashboard" style="max-height: none;">
-                <div class="ai-dashboard-title">
-                  Mutation Impact Summary
-                </div>
-
-                <div class="ai-card">
-                  <h3>Mutation Overview</h3>
-                  <p>
-                    {{ mutation_scan_result.mutation }}
-                    chain {{ mutation_scan_result.chain_id }}:
-                    {{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }}
-                    &rarr;
-                    {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}
-                  </p>
-                  {% if mutation_scan_result.selection_note %}
-                    <p>{{ mutation_scan_result.selection_note }}</p>
-                  {% endif %}
-                </div>
-
-                <div class="ai-card">
-                  <h3>Property Changes</h3>
-                  <ul>
-                    {% for name, value in mutation_scan_result.property_changes.items() %}
-                      <li>{{ name }}: {{ value }}</li>
-                    {% endfor %}
-                  </ul>
-                </div>
-
-                <div class="ai-card">
-                  <h3>Interaction Impact</h3>
-                  <p>Possible loss:</p>
-                  <ul>
-                    {% for item in mutation_scan_result.interaction_impact.possible_loss %}
-                      <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-                    {% else %}
-                      <li>None predicted by current rules.</li>
-                    {% endfor %}
-                  </ul>
-
-                  <p>Possible gain:</p>
-                  <ul>
-                    {% for item in mutation_scan_result.interaction_impact.possible_gain %}
-                      <li>{{ item.interaction_type }}: {{ item.reason }}</li>
-                    {% else %}
-                      <li>None predicted by current rules.</li>
-                    {% endfor %}
-                  </ul>
-                </div>
-
-                <div class="ai-card">
-                  <h3>AI-style Mutation Interpretation</h3>
-                  <p>{{ mutation_scan_result.ai_interpretation | replace("\n", "<br>") | safe }}</p>
-                </div>
-
-                {% if ai_sections %}
-                  {% for title, body in ai_sections.items() %}
-                  <div class="ai-card">
-                    <h3>{{ title }}</h3>
-                    <p>{{ body | safe }}</p>
-                  </div>
-                  {% endfor %}
+              <div class="mutation-summary">
+                <p><strong>Mutation:</strong> {{ mutation_scan_result.mutation }} chain {{ mutation_scan_result.chain_id }}</p>
+                <p>{{ mutation_scan_result.original_residue.res_name }}{{ mutation_scan_result.original_residue.res_id }} &rarr; {{ mutation_scan_result.mutant_residue.res_name }}{{ mutation_scan_result.mutant_residue.res_id }}</p>
+                {% if mutation_scan_result.selection_note %}
+                  <p>{{ mutation_scan_result.selection_note }}</p>
                 {% endif %}
-
-                <details>
-                  <summary>View full mutation report</summary>
-                  <div class="raw-report">{{ mutation_scan_text }}</div>
-                </details>
               </div>
-            {% elif result_mode == 'comparison' %}
-              <h2>Mutation Comparison Result</h2>
-              <pre class="comparison-box">{{ comparison_text }}</pre>
 
               {% if ai_sections %}
-              <div class="ai-dashboard" style="max-height: none;">
-                <div class="ai-dashboard-title">AI Structural Dashboard</div>
                 {% for title, body in ai_sections.items() %}
-                <div class="ai-card">
-                  <h3>{{ title }}</h3>
-                  <p>{{ body | safe }}</p>
-                </div>
+                <details class="ai-section" open>
+                  <summary>{{ title }}</summary>
+                  <div class="section-body">{{ body | safe }}</div>
+                </details>
                 {% endfor %}
-              </div>
               {% endif %}
+
+            {% elif result_mode == 'comparison' %}
+              <h2>Mutation Comparison Result</h2>
+              <div class="comparison-box">{{ comparison_text }}</div>
+              {% if ai_sections %}
+                {% for title, body in ai_sections.items() %}
+                <details class="ai-section" open>
+                  <summary>{{ title }}</summary>
+                  <div class="section-body">{{ body | safe }}</div>
+                </details>
+                {% endfor %}
+              {% endif %}
+
             {% elif result_mode == 'protein_only' %}
               <h2>Protein-only Result</h2>
-
-              <div class="ai-dashboard">
-                <div class="ai-dashboard-title">
-                  Protein-only structural overview
-                </div>
-
-                <div class="ai-card">
-                  <h3>Structure Summary</h3>
-                  <p>
-                    {{ protein_summary.chain_count if protein_summary else 0 }} chain(s),
-                    {{ protein_summary.residue_count if protein_summary else 0 }} protein residues,
-                    {{ protein_summary.atom_count if protein_summary else 0 }} protein atoms.
-                  </p>
-                </div>
-
-                {% if ai_sections %}
-                  {% for title, body in ai_sections.items() %}
-                  <div class="ai-card">
-                    <h3>{{ title }}</h3>
-                    <p>{{ body | safe }}</p>
-                  </div>
-                  {% endfor %}
-                {% else %}
-                <div class="ai-card">
-                  <h3>AI Structural Interpretation</h3>
-                  <p>{{ ai_html | safe }}</p>
-                </div>
-                {% endif %}
-
-                <details>
-                  <summary>View full raw report</summary>
-                  <div class="raw-report">{{ result_text }}</div>
+              {% if ai_sections %}
+                {% for title, body in ai_sections.items() %}
+                <details class="ai-section" open>
+                  <summary>{{ title }}</summary>
+                  <div class="section-body">{{ body | safe }}</div>
                 </details>
+                {% endfor %}
+              {% else %}
+                <div class="section-body">{{ ai_html | safe }}</div>
+              {% endif %}
+              {% if protein_summary %}
+              <div class="mutation-summary" style="margin-top:12px;">
+                <p>{{ protein_summary.chain_count if protein_summary else 0 }} chain(s), {{ protein_summary.residue_count if protein_summary else 0 }} residues, {{ protein_summary.atom_count if protein_summary else 0 }} atoms.</p>
               </div>
+              {% endif %}
+
             {% else %}
               <h2>Analysis Result</h2>
-
-              <div class="ai-dashboard">
-                <div class="ai-dashboard-title">
-                  AI Structural Dashboard
-                </div>
-
-                <div class="ai-card">
-                  <h3>Key Hotspot Residues</h3>
-                  <ul id="hotspot-list">
-                    <li>Detecting hotspot residues...</li>
-                  </ul>
-                </div>
-
-                {% if ai_sections %}
-                  {% for title, body in ai_sections.items() %}
-                  <div class="ai-card">
-                    <h3>{{ title }}</h3>
-                    <p>{{ body | safe }}</p>
-                  </div>
-                  {% endfor %}
-                {% else %}
-                <div class="ai-card">
-                  <h3>AI Structural Interpretation</h3>
-                  <p>{{ ai_html | safe }}</p>
-                </div>
-                {% endif %}
-
-                <details>
-                  <summary>View full raw report</summary>
-                  <div class="raw-report">{{ result_text }}</div>
+              {% if ai_sections %}
+                {% for title, body in ai_sections.items() %}
+                <details class="ai-section" open>
+                  <summary>{{ title }}</summary>
+                  <div class="section-body">{{ body | safe }}</div>
                 </details>
-              </div>
+                {% endfor %}
+              {% else %}
+                <div class="section-body">{{ ai_html | safe }}</div>
+              {% endif %}
 
-              <div>
-                {% if report_download_url %}
-                  <a href="{{ report_download_url }}" class="download-btn">
-                    Download Report (TXT)
-                  </a>
-                {% endif %}
-                {% if json_download_url %}
-                  <a href="{{ json_download_url }}" class="download-btn json">
-                    Download Data (JSON)
-                  </a>
-                {% endif %}
-                {% if csv_download_url %}
-                  <a href="{{ csv_download_url }}" class="download-btn csv">
-                    Download Data (CSV)
-                  </a>
-                {% endif %}
-                {% if ai_report_download_url %}
-                  <a href="{{ ai_report_download_url }}" class="download-btn ai">
-                    Download AI Interpretation
-                  </a>
-                {% endif %}
-              </div>
+              <h2 style="margin-top:16px;">Top Hotspots</h2>
+              <ul class="hotspot-list" id="hotspot-list"></ul>
             {% endif %}
+
+            <!-- Export buttons -->
+            <div class="export-group">
+              {% if report_download_url %}
+                <a href="{{ report_download_url }}" class="export-btn export-txt">Report (TXT)</a>
+              {% endif %}
+              {% if json_download_url %}
+                <a href="{{ json_download_url }}" class="export-btn export-json">Data (JSON)</a>
+              {% endif %}
+              {% if csv_download_url %}
+                <a href="{{ csv_download_url }}" class="export-btn export-csv">Data (CSV)</a>
+              {% endif %}
+              {% if ai_report_download_url %}
+                <a href="{{ ai_report_download_url }}" class="export-btn export-pml">AI Report</a>
+              {% endif %}
+            </div>
           </div>
 
+          {# Data injection for server-rendered viewer init #}
+          <script id="pdb-url-data" data-url="{{ pdb_url }}"></script>
+          <script id="ligand-name-data" data-value="{{ request.form.get('ligand_name', request.form.get('mutation_ligand_name', request.form.get('compare_ligand_name', ''))) }}"></script>
+          <script id="interaction-data" type="application/json">{{ interaction_data | default([]) | tojson }}</script>
+          <script id="lost-residues" type="application/json">{{ lost_residues | default([]) | tojson }}</script>
+          <script id="gained-residues" type="application/json">{{ gained_residues | default([]) | tojson }}</script>
+          <script id="hotspot-residues" type="application/json">{{ hotspot_residues | default([]) | tojson }}</script>
+        {% elif result_text and not pdb_url and not comparison_text and not mutation_scan_result %}
+          <div class="error-box" style="margin-top:16px;">{{ result_text }}</div>
+        {% endif %}
         </div>
 
-        <script id="interaction-data" type="application/json">
-          {{ interaction_data | default([]) | tojson }}
-        </script>
+      </div><!-- /copilot-scroll -->
+    </aside>
 
-        <script id="lost-residues" type="application/json">
-          {{ lost_residues | default([]) | tojson }}
-        </script>
-
-        <script id="gained-residues" type="application/json">
-          {{ gained_residues | default([]) | tojson }}
-        </script>
-
-        <script id="hotspot-residues" type="application/json">
-          {{ hotspot_residues | default([]) | tojson }}
-        </script>
-
-        <script>
-          const pdbUrl = "{{ pdb_url }}";
-
-          const ligandName = {{ request.form.get('ligand_name', request.form.get('mutation_ligand_name', request.form.get('compare_ligand_name', ''))) | tojson }};
-
-          const interactions = JSON.parse(
-            document.getElementById("interaction-data").textContent
-          );
-
-          const lostResidues = JSON.parse(
-            document.getElementById("lost-residues").textContent
-          );
-
-          const gainedResidues = JSON.parse(
-            document.getElementById("gained-residues").textContent
-          );
-
-          const hotspotResidues = JSON.parse(
-            document.getElementById("hotspot-residues").textContent
-          );
-
-          const hotspotList = document.getElementById("hotspot-list");
-
-          let viewer = null;
-          let surfaceOn = false;
-          const pocketResidueSelections = new Set();
-
-          function interactionColor(interaction) {
-            return interaction.color || "yellow";
-          }
-
-          function applyBaseStyle() {
-            viewer.setStyle({}, { cartoon: { color: "spectrum" } });
-            if (!ligandName) return;
-
-            viewer.setStyle(
-              { resn: ligandName },
-              { stick: { color: "red", radius: 0.25 } }
-            );
-
-            viewer.addStyle(
-              { within: { distance: 5, sel: { resn: ligandName } } },
-              { stick: { color: "yellow", radius: 0.18 } }
-            );
-
-            interactions.forEach(function(interaction) {
-              pocketResidueSelections.add(
-                interaction.chain_id + ":" + interaction.res_id
-              );
-            });
-          }
-
-          function drawInteractionLines() {
-            interactions.forEach(function(interaction) {
-              viewer.addCylinder({
-                start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
-                end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
-                radius: 0.08,
-                color: interactionColor(interaction),
-                dashed: true
-              });
-            });
-          }
-
-          function drawDistanceLabels() {
-            var top5 = hotspotResidues.slice(0, 5);
-            var shown = 0;
-            interactions.forEach(function(interaction) {
-              if (shown >= 5) return;
-              var isTop = top5.some(function(r) {
-                return r.chain_id === interaction.chain_id &&
-                       String(r.res_id) === String(interaction.res_id);
-              });
-              if (!isTop) return;
-              shown++;
-
-              var mx = (interaction.start[0] + interaction.end[0]) / 2;
-              var my = (interaction.start[1] + interaction.end[1]) / 2;
-              var mz = (interaction.start[2] + interaction.end[2]) / 2;
-
-              viewer.addLabel(
-                interaction.distance.toFixed(1) + " Å",
-                {
-                  position: { x: mx, y: my, z: mz },
-                  fontColor: interactionColor(interaction),
-                  fontSize: 10,
-                  showBackground: false
-                }
-              );
-            });
-          }
-
-          function drawHotspots() {
-            hotspotResidues.forEach(function(residue) {
-              viewer.setStyle(
-                { chain: residue.chain_id, resi: residue.res_id },
-                {
-                  stick: { color: "orange", radius: 0.45 },
-                  sphere: { color: "orange", radius: 0.75 }
-                }
-              );
-
-              viewer.addResLabels(
-                { chain: residue.chain_id, resi: residue.res_id },
-                {
-                  fontColor: "black",
-                  backgroundColor: "orange",
-                  fontSize: 12,
-                  showBackground: true
-                }
-              );
-            });
-          }
-
-          function drawMutationHighlights() {
-            lostResidues.forEach(function(residue) {
-              viewer.setStyle(
-                { chain: residue.chain_id, resi: residue.res_id },
-                { stick: { color: "red", radius: 0.35 } }
-              );
-            });
-
-            gainedResidues.forEach(function(residue) {
-              viewer.setStyle(
-                { chain: residue.chain_id, resi: residue.res_id },
-                { stick: { color: "green", radius: 0.35 } }
-              );
-            });
-          }
-
-          function showPocketSurface() {
-            pocketResidueSelections.forEach(function(key) {
-              var parts = key.split(":");
-              viewer.addSurface(
-                $3Dmol.SurfaceType.VDW,
-                { opacity: 0.4, color: "yellow" },
-                { chain: parts[0], resi: parts[1] }
-              );
-            });
-          }
-
-          function redrawFullView() {
-            viewer.removeAllShapes();
-            viewer.removeAllLabels();
-            viewer.removeAllSurfaces();
-
-            applyBaseStyle();
-            drawInteractionLines();
-            drawDistanceLabels();
-            drawHotspots();
-            drawMutationHighlights();
-
-            if (surfaceOn) {
-              showPocketSurface();
-            }
-
-            if (ligandName) {
-              viewer.zoomTo({ resn: ligandName });
-            } else {
-              viewer.zoomTo();
-            }
-            viewer.render();
-            viewer.resize();
-
-            var surfaceBtn = document.getElementById("surface-toggle-btn");
-            if (surfaceBtn) {
-              surfaceBtn.textContent = surfaceOn ? "Hide Pocket Surface" : "Show Pocket Surface";
-              if (surfaceOn) {
-                surfaceBtn.classList.add("active");
-              } else {
-                surfaceBtn.classList.remove("active");
-              }
-            }
-          }
-
-          function focusResidue(residue) {
-            viewer.removeAllShapes();
-            viewer.removeAllLabels();
-            viewer.removeAllSurfaces();
-
-            viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.32 } });
-
-            viewer.setStyle(
-              { resn: ligandName },
-              { stick: { color: "yellow", radius: 0.3 } }
-            );
-
-            viewer.setStyle(
-              { chain: residue.chain_id, resi: residue.res_id },
-              {
-                stick: { color: "orange", radius: 0.55 },
-                sphere: { color: "orange", radius: 1.0 }
-              }
-            );
-
-            viewer.addResLabels(
-              { chain: residue.chain_id, resi: residue.res_id },
-              {
-                fontColor: "black",
-                backgroundColor: "orange",
-                fontSize: 14,
-                showBackground: true
-              }
-            );
-
-            interactions
-              .filter(function(interaction) {
-                return interaction.res_name === residue.res_name &&
-                       interaction.res_id === residue.res_id &&
-                       interaction.chain_id === residue.chain_id;
-              })
-              .forEach(function(interaction) {
-                viewer.addCylinder({
-                  start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
-                  end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
-                  radius: 0.13,
-                  color: interactionColor(interaction),
-                  dashed: true
-                });
-
-                var mx = (interaction.start[0] + interaction.end[0]) / 2;
-                var my = (interaction.start[1] + interaction.end[1]) / 2;
-                var mz = (interaction.start[2] + interaction.end[2]) / 2;
-                viewer.addLabel(
-                  interaction.distance.toFixed(1) + " Å",
-                  {
-                    position: { x: mx, y: my, z: mz },
-                    fontColor: interactionColor(interaction),
-                    fontSize: 11,
-                    showBackground: false
-                  }
-                );
-              });
-
-            viewer.zoomTo({ chain: residue.chain_id, resi: residue.res_id });
-            viewer.render();
-          }
-
-          function focusHotspots() {
-            viewer.removeAllShapes();
-            viewer.removeAllLabels();
-            viewer.removeAllSurfaces();
-
-            viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.25 } });
-
-            viewer.setStyle(
-              { resn: ligandName },
-              { stick: { color: "yellow", radius: 0.3 } }
-            );
-
-            drawHotspots();
-            drawInteractionLines();
-            drawDistanceLabels();
-
-            if (hotspotResidues.length > 0) {
-              var selections = hotspotResidues.map(function(residue) {
-                return { chain: residue.chain_id, resi: residue.res_id };
-              });
-              viewer.zoomTo(selections);
-            } else {
-              viewer.zoomTo({ resn: ligandName });
-            }
-
-            viewer.render();
-          }
-
-          if (hotspotList) {
-            hotspotList.innerHTML = "";
-
-            if (hotspotResidues.length === 0) {
-              hotspotList.innerHTML = "<li>No hotspot residues detected.</li>";
-            } else {
-              hotspotResidues.forEach(function(residue, index) {
-                var li = document.createElement("li");
-
-                var btn = document.createElement("button");
-                btn.className = "hotspot-btn";
-                btn.innerHTML =
-                  '<span class="hotspot-rank">#' + (index + 1) + '</span>' +
-                  residue.res_name + residue.res_id + ' chain ' + residue.chain_id + ' · ' +
-                  residue.distance + ' Å · ' + (residue.interaction_type || "contact");
-
-                btn.onclick = (function(r) {
-                  return function() { focusResidue(r); };
-                })(residue);
-
-                li.appendChild(btn);
-                hotspotList.appendChild(li);
-              });
-            }
-          }
-
-          fetch(pdbUrl)
-            .then(function(response) { return response.text(); })
-            .then(function(pdbData) {
-              viewer = $3Dmol.createViewer("viewer", {
-                backgroundColor: "white"
-              });
-
-              viewer.addModel(pdbData, "pdb");
-
-              redrawFullView();
-
-              document.getElementById("reset-view-btn").onclick = function() {
-                redrawFullView();
-              };
-
-              document.getElementById("pocket-view-btn").onclick = function() {
-                viewer.zoomTo({ resn: ligandName });
-                viewer.render();
-              };
-
-              document.getElementById("hotspot-view-btn").onclick = function() {
-                focusHotspots();
-              };
-
-              document.getElementById("surface-toggle-btn").onclick = function() {
-                surfaceOn = !surfaceOn;
-                redrawFullView();
-              };
-            });
-        </script>
-
-      {% endif %}
-
-      {% if result_text and not pdb_url and not comparison_text and not mutation_scan_result %}
-        <div class="error-box">{{ result_text }}</div>
-      {% endif %}
-
-      {% if not pdb_url and not comparison_text and not mutation_scan_result %}
-        <div class="placeholder">
-          Select an analysis mode above, upload your PDB file(s), and enter a ligand name to begin.
+    <!-- RIGHT: Viewer Panel -->
+    <section class="viewer-panel">
+      <div class="viewer-container">
+        <div id="viewer"></div>
+        <div class="viewer-empty" id="viewer-empty-state">
+          <div class="viewer-empty-icon">&#x1F9EC;</div>
+          <div class="viewer-empty-text">3D Structure Viewer</div>
+          <div class="viewer-empty-sub">Load a PDB structure and run analysis to visualize</div>
         </div>
-      {% endif %}
       </div>
 
-    </div><!-- /.content -->
-  </div><!-- /.container -->
+      <!-- Toolbar -->
+      <div class="viewer-toolbar">
+        <button class="tool-btn" id="reset-view-btn">Reset View</button>
+        <button class="tool-btn" id="pocket-view-btn">Focus Ligand</button>
+        <button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>
+        <button class="tool-btn" id="surface-toggle-btn">Show Surface</button>
+      </div>
+
+      <!-- Legend -->
+      <div class="viewer-legend">
+        <div class="legend-item"><span class="legend-dot hydrophobic"></span> Hydrophobic</div>
+        <div class="legend-item"><span class="legend-dot polar"></span> Polar / H-Bond</div>
+        <div class="legend-item"><span class="legend-dot charged"></span> Charged</div>
+        <div class="legend-item"><span class="legend-dot vdw"></span> van der Waals</div>
+        <div class="legend-item"><span class="legend-dot hotspot"></span> Hotspot</div>
+        <div class="legend-item"><span class="legend-dot lost"></span> Lost Contact</div>
+        <div class="legend-item"><span class="legend-dot gained"></span> Gained Contact</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- RECENT BAR -->
+  <footer class="recent-bar">
+    <div class="recent-label">
+      <span class="recent-dot"></span> Recent
+    </div>
+    <div class="recent-list" id="recent-list">
+      <span style="color:var(--text-muted);font-size:12px;">Loading...</span>
+    </div>
+  </footer>
+
+</div><!-- /app-shell -->
+
+<!-- Scripts (order matters: state → api → ligand → upload → viewer → copilot) -->
+<script src="{{ url_for('static', filename='js/state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ligand.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+<script src="{{ url_for('static', filename='js/viewer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/copilot.js') }}"></script>
+
+<!-- Init -->
+<script>
+  (function() {
+    if (window.PSCInitUpload) window.PSCInitUpload();
+    if (window.PSCInitCopilot) window.PSCInitCopilot();
+  })();
+</script>
 
-  <!-- Tab state cache -->
-  <script>
-    (function() {
-      var cache = {};
-      window.PSCTabState = {
-        save: function(tabId, data) {
-          cache[tabId] = data;
-        },
-        get: function(tabId) {
-          return cache[tabId] || null;
-        },
-        getActiveTabId: function() {
-          var activeBtn = document.querySelector(".tab-btn.active");
-          return activeBtn ? activeBtn.getAttribute("data-tab") : "tab-single";
-        },
-        clearTab: function(tabId) {
-          delete cache[tabId];
-        },
-        restoreTab: function(tabId) {
-          var data = cache[tabId];
-          var root = document.getElementById("results-root");
-          if (!root) return false;
-          if (data && window.PSCRenderResults) {
-            window.PSCRenderResults(data);
-            if (data.pdb_url) {
-              setTimeout(function() {
-                if (window.PSCInitViewerFromData) window.PSCInitViewerFromData(data);
-              }, 150);
-            }
-            return true;
-          }
-          return false;
-        }
-      };
-    })();
-  </script>
-
-  <!-- Tab switching -->
-  <script>
-    (function() {
-      var tabBtns = document.querySelectorAll(".tab-btn");
-      var tabPanels = document.querySelectorAll(".tab-panel");
-
-      function showPlaceholder() {
-        var root = document.getElementById("results-root");
-        if (!root) return;
-        root.setAttribute("data-result-mode", "empty");
-        root.innerHTML = '<div class="placeholder">Select an analysis mode above, upload your PDB file(s), and enter a ligand name to begin.</div>';
-      }
-
-      tabBtns.forEach(function(btn) {
-        btn.addEventListener("click", function() {
-          var targetId = btn.getAttribute("data-tab");
-          var activePanel = document.querySelector(".tab-panel.active");
-          var activeId = activePanel ? activePanel.id : "";
-
-          if (targetId === activeId) return;
-
-          tabBtns.forEach(function(b) { b.classList.remove("active"); });
-          tabPanels.forEach(function(p) { p.classList.remove("active"); });
-
-          btn.classList.add("active");
-          document.getElementById(targetId).classList.add("active");
-
-          if (window.PSCTabState && window.PSCTabState.restoreTab(targetId)) {
-            return;
-          }
-          showPlaceholder();
-        });
-      });
-    })();
-  </script>
-
-  <!-- Drag-and-drop file upload -->
-  <script>
-    (function() {
-      function formatSize(bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-      }
-
-      var ignoredLigandResidues = new Set([
-        "HOH", "WAT", "H2O", "DOD",
-        "SO4", "PO4"
-      ]);
-
-      function detectLigandsFromPdbText(pdbText) {
-        var ligandsByName = new Map();
-        String(pdbText || "").split(/\r?\n/).forEach(function(line) {
-          if (!line || line.slice(0, 6).trim() !== "HETATM") return;
-
-          var resName = line.slice(17, 20).trim().toUpperCase();
-          if (!resName || ignoredLigandResidues.has(resName)) return;
-
-          var chainId = line.slice(21, 22).trim();
-          var resId = line.slice(22, 26).trim();
-          if (!ligandsByName.has(resName)) {
-            ligandsByName.set(resName, {
-              name: resName,
-              count: 0,
-              locations: []
-            });
-          }
-          ligandsByName.get(resName).count += 1;
-          if (chainId || resId) {
-            ligandsByName.get(resName).locations.push((chainId ? "chain " + chainId + " " : "") + "residue " + resId);
-          }
-        });
-
-        return Array.from(ligandsByName.values()).sort(function(a, b) {
-          if (b.count !== a.count) return b.count - a.count;
-          return a.name.localeCompare(b.name);
-        });
-      }
-      window.PSCDetectLigandsFromPdbText = detectLigandsFromPdbText;
-
-      var ligandDetectionState = window.PSCLigandDetectionState = {
-        status: "unknown",
-        ligands: [],
-        primaryLigand: ""
-      };
-
-      function setLigandDetectionState(ligands) {
-        ligandDetectionState.ligands = ligands || [];
-        ligandDetectionState.primaryLigand = ligandDetectionState.ligands.length ? ligandDetectionState.ligands[0].name : "";
-        ligandDetectionState.status = ligandDetectionState.primaryLigand ? "detected" : "none";
-        window.PSCLigandDetectionState = ligandDetectionState;
-      }
-
-      function clearLigandCandidates() {
-        var datalist = document.getElementById("ligand-candidates");
-        var ligandInput = document.getElementById("ligand-analyze");
-        if (datalist) datalist.innerHTML = "";
-        if (ligandInput && !ligandInput.disabled) ligandInput.value = "";
-        setLigandDetectionState([]);
-      }
-
-      function setLigandDetectionMessage(sourceLabel, html, statusEl) {
-        var fetchStatus = statusEl || document.getElementById("fetch-status");
-        if (!fetchStatus) return;
-
-        if (sourceLabel === "rcsb" &&
-            (fetchStatus.innerHTML.indexOf("Downloaded") !== -1 ||
-             fetchStatus.innerHTML.indexOf("Loaded from RCSB") !== -1)) {
-          fetchStatus.innerHTML += " " + html;
-        } else {
-          fetchStatus.innerHTML = html;
-        }
-      }
-
-      function updateLigandCandidates(ligands, sourceLabel, options) {
-        options = options || {};
-        var ligandInput = document.getElementById("ligand-analyze");
-        var datalist = document.getElementById("ligand-candidates");
-        var names = (ligands || []).map(function(ligand) { return ligand.name; });
-        var primaryLigand = ligands && ligands.length ? ligands[0].name : "";
-        var statusEl = options.statusEl || null;
-        setLigandDetectionState(ligands || []);
-
-        console.log("[PSC] Detected ligands from " + sourceLabel + ":", (ligands || []).map(function(ligand) {
-          return ligand.name + ":" + ligand.count;
-        }));
-
-        if (datalist) {
-          datalist.innerHTML = "";
-          names.forEach(function(name) {
-            var option = document.createElement("option");
-            option.value = name;
-            datalist.appendChild(option);
-          });
-        }
-
-        if (!names.length) {
-          setLigandDetectionMessage(
-            sourceLabel,
-            '<span style="color:#64748b;">No ligand detected. Protein-only mode enabled — click Analyze Structure to proceed.</span>',
-            statusEl
-          );
-          // Auto-enable skip-ligand mode when no ligands detected
-          var skipInput = document.getElementById("skip-ligand-mode");
-          if (skipInput && !skipInput.checked) {
-            skipInput.checked = true;
-            updateSkipLigandModeUI();
-          }
-          return;
-        }
-
-        // Ligands detected: auto-disable skip-ligand mode
-        var skipInput = document.getElementById("skip-ligand-mode");
-        if (skipInput && skipInput.checked) {
-          skipInput.checked = false;
-          updateSkipLigandModeUI();
-        }
-
-        if (names.length === 1) {
-          setLigandDetectionMessage(sourceLabel, '<span style="color:#64748b;">Detected ligand: ' + names[0] + '</span>', statusEl);
-        } else {
-          setLigandDetectionMessage(
-            sourceLabel,
-            '<span style="color:#64748b;">Detected ligand: ' + primaryLigand + '. Candidates: ' + names.slice(0, 6).join(", ") + '</span>',
-            statusEl
-          );
-        }
-
-        if (ligandInput && primaryLigand && !isSkipLigandMode()) {
-          ligandInput.value = primaryLigand;
-          ligandInput.dispatchEvent(new Event("input", { bubbles: true }));
-          ligandInput.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-
-        ["ligand-mutation", "ligand-compare"].forEach(function(id) {
-          var featureLigandInput = document.getElementById(id);
-          if (featureLigandInput && primaryLigand) {
-            featureLigandInput.value = primaryLigand;
-            featureLigandInput.dispatchEvent(new Event("input", { bubbles: true }));
-            featureLigandInput.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-        });
-      }
-
-      function isSkipLigandMode() {
-        var skipInput = document.getElementById("skip-ligand-mode");
-        return !!(skipInput && skipInput.checked);
-      }
-
-      function updateSkipLigandModeUI() {
-        var skipInput = document.getElementById("skip-ligand-mode");
-        var ligandInput = document.getElementById("ligand-analyze");
-        var statusEl = document.getElementById("analysis-status");
-        if (!skipInput || !ligandInput) return;
-
-        var mode = (skipInput && skipInput.checked) ? "protein_only" : "ligand";
-
-        if (mode === "protein_only") {
-          ligandInput.value = "";
-          ligandInput.disabled = true;
-          ligandInput.placeholder = "Ligand skipped (protein-only mode)";
-          if (statusEl) {
-            statusEl.innerHTML = '<span style="color:#3b82f6;">Protein-only analysis mode · No ligand required · Click Analyze Structure to proceed</span>';
-          }
-        } else {
-          ligandInput.disabled = false;
-          ligandInput.placeholder = "e.g. MK1 / CLR";
-          if (statusEl && analysisFile.ready) {
-            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for ligand-pocket analysis</span>';
-          } else if (statusEl) {
-            statusEl.innerHTML = '';
-          }
-        }
-      }
-
-      function detectLigandsFromFile(file, sourceLabel) {
-        var fetchStatus = document.getElementById("fetch-status");
-        if (!file || typeof file.text !== "function") return Promise.resolve([]);
-
-        console.log("[PSC] Reading uploaded PDB with file.text():", file.name);
-        return file.text()
-          .then(function(pdbText) {
-            var ligands = detectLigandsFromPdbText(pdbText);
-            updateLigandCandidates(ligands, sourceLabel);
-            return ligands;
-          })
-          .catch(function(err) {
-            console.error("[PSC] Could not read PDB file for ligand detection:", err);
-            if (fetchStatus) {
-              fetchStatus.innerHTML += ' <span style="color:#ef4444;">Could not read PDB file for ligand detection.</span>';
-            }
-            return [];
-          });
-      }
-      window.PSCDetectLigandsFromFile = detectLigandsFromFile;
-
-      // ===== Unified analysis file state =====
-      var currentStructure = {
-        name: null,
-        size: null,
-        source: null,      // 'local' or 'rcsb'
-        fileObject: null,  // File object for FormData
-        pdbFilename: null, // RCSB filename for server-side path
-        pdbText: null,
-        pdbId: null,
-        ready: false
-      };
-      var analysisStructure = currentStructure;
-      var analysisFile = currentStructure;
-      window.PSCCurrentStructure = currentStructure;
-      window.PSCAnalysisStructure = analysisStructure;
-      window.PSCAnalysisFile = analysisFile;
-
-      function emptyStructureState() {
-        return {
-          name: null,
-          size: null,
-          source: null,
-          fileObject: null,
-          pdbFilename: null,
-          pdbText: null,
-          pdbId: null,
-          ready: false
-        };
-      }
-
-      var wtStructure = emptyStructureState();
-      var mutantStructure = emptyStructureState();
-      window.PSCWTStructure = wtStructure;
-      window.PSCMutantStructure = mutantStructure;
-
-      function getStructureSourceText() {
-        if (!analysisFile.ready) {
-          return "Please load a structure from RCSB or upload a local PDB file first.";
-        }
-        if (analysisFile.source === "rcsb") {
-          return "Current Structure: " + (analysisFile.pdbId || analysisFile.name || "PDB") + " from RCSB";
-        }
-        return "Current Structure: " + (analysisFile.name || "PDB file") + " from Local Upload";
-      }
-
-      function updateSharedStructurePanels() {
-        ["mutation-structure-source"].forEach(function(id) {
-          var el = document.getElementById(id);
-          if (!el) return;
-          el.textContent = getStructureSourceText();
-          el.classList.toggle("ready", !!analysisFile.ready);
-          el.classList.toggle("warning", !analysisFile.ready);
-        });
-      }
-
-      function getCompareStructureText(kind, structure) {
-        var label = kind === "wt" ? "WT Structure" : "Mutant Structure";
-        var missing = kind === "wt"
-          ? "Please load WT structure from RCSB or upload a local WT PDB file first."
-          : "Please load Mutant structure from RCSB or upload a local Mutant PDB file first.";
-        if (!structure.ready) return missing;
-        if (structure.source === "rcsb") {
-          return label + ": " + (structure.pdbId || structure.name || "PDB") + " from RCSB";
-        }
-        return label + ": " + (structure.name || "PDB file") + " from Local Upload";
-      }
-
-      function updateCompareStructurePanel(kind) {
-        var structure = kind === "wt" ? wtStructure : mutantStructure;
-        var el = document.getElementById(kind === "wt" ? "wt-structure-source" : "mut-structure-source");
-        if (!el) return;
-        el.textContent = getCompareStructureText(kind, structure);
-        el.classList.toggle("ready", !!structure.ready);
-        el.classList.toggle("warning", !structure.ready);
-      }
-
-      function updateCompareStatus() {
-        var statusEl = document.getElementById("compare-status");
-        if (!statusEl) return;
-        if (wtStructure.ready && mutantStructure.ready) {
-          statusEl.innerHTML = '<span style="color:#22c55e;">✓ WT and mutant structures ready for comparison</span>';
-        } else {
-          statusEl.innerHTML = '';
-        }
-      }
-
-      function setCompareStructure(kind, state) {
-        var target = kind === "wt" ? wtStructure : mutantStructure;
-        Object.assign(target, emptyStructureState(), state);
-        if (kind === "wt") {
-          window.PSCWTStructure = target;
-        } else {
-          window.PSCMutantStructure = target;
-        }
-
-        var hiddenInput = document.getElementById(kind === "wt" ? "wt-pdb-filename-hidden" : "mut-pdb-filename-hidden");
-        if (hiddenInput) hiddenInput.value = target.pdbFilename || "";
-
-        var zone = document.getElementById(kind === "wt" ? "drop-zone-wt" : "drop-zone-mut");
-        var fileNameDisplay = zone ? zone.querySelector(".file-card-filename") : null;
-        var fileSizeDisplay = zone ? zone.querySelector(".file-card-size") : null;
-        var warning = zone ? zone.parentElement.querySelector(".file-size-warning") : null;
-        var error = zone ? zone.parentElement.querySelector(".file-error") : null;
-
-        if (zone) {
-          if (target.ready) {
-            zone.classList.add("has-file");
-            zone.classList.remove("has-error");
-            if (fileNameDisplay) fileNameDisplay.textContent = target.name || "";
-            if (fileSizeDisplay) fileSizeDisplay.textContent = target.size || "";
-            if (warning) warning.style.display = "none";
-            if (error) error.style.display = "none";
-          } else {
-            zone.classList.remove("has-file");
-          }
-        }
-
-        updateCompareStructurePanel(kind);
-        updateCompareStatus();
-      }
-
-      function setAnalysisFile(state) {
-        Object.assign(analysisFile, {
-          name: null, size: null, source: null,
-          fileObject: null, pdbFilename: null, pdbText: null, pdbId: null, ready: false
-        }, state);
-        window.PSCCurrentStructure = analysisFile;
-        window.PSCAnalysisStructure = analysisFile;
-        window.PSCAnalysisFile = analysisFile;
-
-        console.log("[PSC] analysisFile updated:", {
-          name: analysisFile.name,
-          size: analysisFile.size,
-          source: analysisFile.source,
-          hasFileObject: !!analysisFile.fileObject,
-          pdbFilename: analysisFile.pdbFilename,
-          hasPdbText: !!analysisFile.pdbText,
-          pdbId: analysisFile.pdbId,
-          ready: analysisFile.ready
-        });
-
-        // Sync DOM: drop zone UI
-        var zone = document.getElementById("drop-zone-analyze");
-        var fileNameDisplay = zone ? zone.querySelector(".file-card-filename") : null;
-        var fileSizeDisplay = zone ? zone.querySelector(".file-card-size") : null;
-        var warning = document.querySelector("#tab-single .file-size-warning");
-        var error = document.querySelector("#tab-single .file-error");
-        var hiddenFname = document.getElementById("pdb-filename-hidden");
-
-        if (!zone) return;
-
-        if (analysisFile.ready) {
-          zone.classList.add("has-file");
-          zone.classList.remove("has-error");
-          if (fileNameDisplay) fileNameDisplay.textContent = analysisFile.name || "";
-          if (fileSizeDisplay) fileSizeDisplay.textContent = analysisFile.size || "";
-          if (warning) warning.style.display = "none";
-          if (error) error.style.display = "none";
-          if (hiddenFname) hiddenFname.value = analysisFile.pdbFilename || "";
-        } else {
-          zone.classList.remove("has-file");
-          if (hiddenFname) hiddenFname.value = "";
-        }
-
-        // Update status indicator
-        var statusEl = document.getElementById("analysis-status");
-        if (statusEl) {
-          if (analysisFile.ready) {
-            statusEl.innerHTML = '<span style="color:#22c55e;">✓ ' + (analysisFile.name || 'File') + ' ready for analysis</span>';
-          } else {
-            statusEl.innerHTML = '';
-          }
-        }
-
-        updateSharedStructurePanels();
-      }
-
-      function setupDropZone(zone) {
-        var input = zone.querySelector('input[type="file"]');
-        var removeBtn = zone.querySelector(".remove-file-btn");
-        var warning = zone.querySelector(".file-size-warning");
-        var error = zone.querySelector(".file-error");
-
-        function handleFile(file) {
-          if (!file) return;
-
-          if (!file.name.toLowerCase().endsWith(".pdb")) {
-            zone.classList.add("has-error");
-            zone.classList.remove("has-file");
-            if (error) error.style.display = "block";
-            if (zone.id === "drop-zone-analyze") {
-              clearLigandCandidates();
-              setAnalysisFile({ ready: false });
-            } else if (zone.id === "drop-zone-wt") {
-              setCompareStructure("wt", { ready: false });
-            } else if (zone.id === "drop-zone-mut") {
-              setCompareStructure("mut", { ready: false });
-            }
-            return;
-          }
-
-          zone.classList.remove("has-error");
-          var sizeStr = formatSize(file.size);
-
-          if (zone.id === "drop-zone-analyze") {
-            clearLigandCandidates();
-            var fetchStatus = document.getElementById("fetch-status");
-            if (fetchStatus) {
-              fetchStatus.innerHTML = '<span style="color:#3b82f6;">Detecting ligand candidates...</span>';
-            }
-            file.text()
-              .then(function(pdbText) {
-                setAnalysisFile({
-                  name: file.name,
-                  size: sizeStr,
-                  source: "local",
-                  fileObject: file,
-                  pdbFilename: null,
-                  pdbText: pdbText,
-                  pdbId: null,
-                  ready: true
-                });
-                updateLigandCandidates(detectLigandsFromPdbText(pdbText), "local");
-              })
-              .catch(function(err) {
-                console.error("[PSC] Could not read local PDB file:", err);
-                setAnalysisFile({ ready: false });
-                if (fetchStatus) {
-                  fetchStatus.innerHTML = '<span style="color:#ef4444;">Could not read PDB file.</span>';
-                }
-              });
-          } else if (zone.id === "drop-zone-wt" || zone.id === "drop-zone-mut") {
-            var kind = zone.id === "drop-zone-wt" ? "wt" : "mut";
-            var compareStatus = document.getElementById(kind === "wt" ? "wt-fetch-status" : "mut-fetch-status");
-            if (compareStatus) {
-              compareStatus.innerHTML = '<span style="color:#3b82f6;">Reading local PDB...</span>';
-            }
-            file.text()
-              .then(function(pdbText) {
-                setCompareStructure(kind, {
-                  name: file.name,
-                  size: sizeStr,
-                  source: "local",
-                  fileObject: file,
-                  pdbFilename: null,
-                  pdbText: pdbText,
-                  pdbId: null,
-                  ready: true
-                });
-                if (compareStatus) {
-                  compareStatus.innerHTML = '<span style="color:#22c55e;">✓ Loaded from Local Upload: ' + file.name + '</span>';
-                }
-                updateLigandCandidates(detectLigandsFromPdbText(pdbText), "local", { statusEl: compareStatus });
-              })
-              .catch(function(err) {
-                console.error("[PSC] Could not read compare PDB file:", err);
-                setCompareStructure(kind, { ready: false });
-                if (compareStatus) {
-                  compareStatus.innerHTML = '<span style="color:#ef4444;">Could not read PDB file.</span>';
-                }
-              });
-          }
-
-          if (file.size > 10 * 1024 * 1024 && warning) {
-            warning.style.display = "block";
-          }
-        }
-
-        function removeFile() {
-          zone.classList.remove("has-file", "has-error");
-          if (warning) warning.style.display = "none";
-          if (error) error.style.display = "none";
-          input.value = "";
-          if (zone.id === "drop-zone-analyze") {
-            clearLigandCandidates();
-            var ligandInput = document.getElementById("ligand-analyze");
-            if (ligandInput) ligandInput.value = "";
-            setAnalysisFile({ ready: false });
-          } else if (zone.id === "drop-zone-wt") {
-            var wtStatus = document.getElementById("wt-fetch-status");
-            if (wtStatus) wtStatus.innerHTML = "";
-            setCompareStructure("wt", { ready: false });
-          } else if (zone.id === "drop-zone-mut") {
-            var mutStatus = document.getElementById("mut-fetch-status");
-            if (mutStatus) mutStatus.innerHTML = "";
-            setCompareStructure("mut", { ready: false });
-          }
-        }
-
-        input.addEventListener("change", function() {
-          handleFile(input.files[0]);
-        });
-
-        if (removeBtn) {
-          removeBtn.addEventListener("click", function(e) {
-            e.stopPropagation();
-            removeFile();
-          });
-        }
-
-        zone.addEventListener("dragover", function(e) {
-          e.preventDefault();
-          zone.classList.add("drag-over");
-        });
-
-        zone.addEventListener("dragleave", function() {
-          zone.classList.remove("drag-over");
-        });
-
-        zone.addEventListener("drop", function(e) {
-          e.preventDefault();
-          zone.classList.remove("drag-over");
-
-          var files = e.dataTransfer.files;
-          if (files.length > 0) {
-            var dt = new DataTransfer();
-            dt.items.add(files[0]);
-            input.files = dt.files;
-            handleFile(files[0]);
-          }
-        });
-      }
-
-      document.querySelectorAll(".drop-zone").forEach(function(zone) {
-        setupDropZone(zone);
-      });
-      updateSharedStructurePanels();
-      updateCompareStructurePanel("wt");
-      updateCompareStructurePanel("mut");
-
-      var skipLigandInput = document.getElementById("skip-ligand-mode");
-      if (skipLigandInput) {
-        skipLigandInput.addEventListener("change", updateSkipLigandModeUI);
-      }
-
-      function syncRcsbFileInput(pdbFile, target) {
-        var zoneId = "drop-zone-analyze";
-        if (target === "wt") zoneId = "drop-zone-wt";
-        if (target === "mut") zoneId = "drop-zone-mut";
-
-        var zone = document.getElementById(zoneId);
-        var fileInput = zone ? zone.querySelector('input[type="file"]') : null;
-        if (!fileInput) return;
-
-        var dt = new DataTransfer();
-        dt.items.add(pdbFile);
-        fileInput.files = dt.files;
-      }
-
-      function refreshCurrentStructureViewer(pdbText) {
-        var viewerEl = document.getElementById("viewer");
-        if (!viewerEl || !window.$3Dmol || !pdbText) return;
-
-        var previewViewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
-        previewViewer.addModel(pdbText, "pdb");
-        previewViewer.setStyle({}, { cartoon: { color: "spectrum" } });
-        previewViewer.zoomTo();
-        previewViewer.render();
-        previewViewer.resize();
-      }
-
-      function fetchStructureFromRCSB(pdbId, options) {
-        options = options || {};
-        var normalizedPdbId = String(pdbId || "").trim().toUpperCase();
-        var statusEl = options.statusEl || document.getElementById("fetch-status");
-        var button = options.button || null;
-        var target = options.target || "current";
-
-        if (!normalizedPdbId || normalizedPdbId.length !== 4) {
-          if (statusEl) {
-            statusEl.innerHTML = '<span style="color:#ef4444;">Enter a valid 4-character PDB ID</span>';
-          }
-          return Promise.resolve(false);
-        }
-
-        if (button) button.disabled = true;
-        if (statusEl) {
-          statusEl.innerHTML = '<span style="color:#3b82f6;">Fetching from RCSB...</span>';
-        }
-
-        var formData = new FormData();
-        formData.append("pdb_id", normalizedPdbId);
-
-        return fetch("/fetch_pdb", { method: "POST", body: formData })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (!data.success) {
-              if (statusEl) {
-                statusEl.innerHTML = '<span style="color:#ef4444;">' + data.error_text + '</span>';
-              }
-              if (target === "current") {
-                clearLigandCandidates();
-                setAnalysisFile({ ready: false });
-              } else {
-                setCompareStructure(target, { ready: false });
-              }
-              return false;
-            }
-
-            return fetch(data.pdb_url)
-              .then(function(r) { return r.text(); })
-              .then(function(pdbText) {
-                if (!pdbText || !pdbText.trim()) {
-                  throw new Error("Downloaded PDB content is empty");
-                }
-
-                var pdbFile = new File([pdbText], normalizedPdbId + ".pdb", { type: "chemical/x-pdb" });
-                var loadedState = {
-                  name: normalizedPdbId + ".pdb",
-                  size: formatSize(pdbFile.size),
-                  source: "rcsb",
-                  fileObject: pdbFile,
-                  pdbFilename: data.filename,
-                  pdbText: pdbText,
-                  pdbId: data.pdb_id || normalizedPdbId,
-                  ready: true
-                };
-                syncRcsbFileInput(pdbFile, target);
-
-                if (target === "current") {
-                  setAnalysisFile(loadedState);
-                } else {
-                  setCompareStructure(target, loadedState);
-                }
-
-                if (statusEl) {
-                  statusEl.innerHTML = '<span style="color:#22c55e;">✓ Loaded from RCSB: ' + normalizedPdbId + '.pdb</span>';
-                }
-                var detectedLigands = detectLigandsFromPdbText(pdbText);
-                if (!detectedLigands.length && data.ligands && data.ligands.length) {
-                  detectedLigands = data.ligands.map(function(name) {
-                    return { name: name, count: 0, locations: [] };
-                  });
-                }
-                updateLigandCandidates(detectedLigands, "rcsb", { statusEl: statusEl });
-                if (target === "current") {
-                  refreshCurrentStructureViewer(pdbText);
-                }
-                return true;
-              });
-          })
-          .catch(function(err) {
-            console.error("[PSC] Failed to fetch PDB from RCSB:", err);
-            if (statusEl) {
-              statusEl.innerHTML = '<span style="color:#ef4444;">Failed to download PDB content</span>';
-            }
-            if (target === "current") {
-              clearLigandCandidates();
-              setAnalysisFile({ ready: false });
-            } else {
-              setCompareStructure(target, { ready: false });
-            }
-            return false;
-          })
-          .finally(function() {
-            if (button) button.disabled = false;
-          });
-      }
-      window.PSCFetchStructureFromRCSB = fetchStructureFromRCSB;
-
-      function setupRcsbFetchControls(inputId, buttonId, statusId, target) {
-        var pdbIdInput = document.getElementById(inputId);
-        var fetchBtn = document.getElementById(buttonId);
-        var fetchStatus = document.getElementById(statusId);
-        if (!pdbIdInput || !fetchBtn) return;
-
-        fetchBtn.addEventListener("click", function() {
-          fetchStructureFromRCSB(pdbIdInput.value, {
-            button: fetchBtn,
-            statusEl: fetchStatus,
-            target: target || "current"
-          });
-        });
-
-        pdbIdInput.addEventListener("keydown", function(e) {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            fetchBtn.click();
-          }
-        });
-      }
-
-      setupRcsbFetchControls("pdb-id-input", "fetch-pdb-btn", "fetch-status", "current");
-      setupRcsbFetchControls("mutation-pdb-id-input", "mutation-fetch-pdb-btn", "mutation-fetch-status", "current");
-      setupRcsbFetchControls("wt-pdb-id-input", "wt-fetch-pdb-btn", "wt-fetch-status", "wt");
-      setupRcsbFetchControls("mut-pdb-id-input", "mut-fetch-pdb-btn", "mut-fetch-status", "mut");
-    })();
-  </script>
-
-  <!-- AJAX analyze + progress panel -->
-  <script>
-    (function() {
-      var progressOverlay = document.getElementById("progress-overlay");
-      var progressTitle = document.getElementById("progress-title");
-      var progressBarFill = document.getElementById("progress-bar-fill");
-      var progressDone = document.getElementById("progress-done-message");
-      var progressError = document.getElementById("progress-error-message");
-      var resultsContainer = document.getElementById("results-root");
-      var stagesEl = document.getElementById("progress-stages");
-
-      var stageEls = stagesEl ? stagesEl.querySelectorAll(".progress-stage") : [];
-      var totalStages = stageEls.length;
-      var currentStage = 0;
-      var fetchComplete = false;
-      var responseData = null;
-      var stageTimers = [];
-
-      function setStage(index, state) {
-        if (index >= totalStages) return;
-        var el = stageEls[index];
-        el.className = "progress-stage " + state;
-      }
-
-      function advanceStage() {
-        if (currentStage >= totalStages) return;
-
-        setStage(currentStage, "done");
-
-        if (currentStage > 0) {
-          setStage(currentStage - 1, "done");
-        }
-
-        currentStage++;
-
-        if (currentStage < totalStages) {
-          setStage(currentStage, "active");
-          var pct = Math.round((currentStage / totalStages) * 100);
-          progressBarFill.style.width = pct + "%";
-
-          var delay = 900 + Math.random() * 500;
-          stageTimers.push(setTimeout(advanceStage, delay));
-        }
-      }
-
-      function clearStageTimers() {
-        stageTimers.forEach(function(t) { clearTimeout(t); });
-        stageTimers = [];
-      }
-
-      function completeAllStages() {
-        clearStageTimers();
-        for (var i = 0; i < totalStages; i++) {
-          setStage(i, "done");
-        }
-        progressBarFill.style.width = "100%";
-        progressDone.classList.add("show");
-        progressTitle.textContent = "Analysis Complete";
-      }
-
-      function showError(msg) {
-        console.error("[PSC] Analysis error:", msg);
-        renderErrorResult(msg);
-        clearStageTimers();
-        progressBarFill.style.width = "100%";
-        progressBarFill.style.background = "#ef4444";
-        progressTitle.textContent = "Analysis Failed";
-        progressError.textContent = msg;
-        progressError.classList.add("show");
-        progressDone.classList.remove("show");
-
-        for (var i = 0; i < totalStages; i++) {
-          setStage(i, "done");
-        }
-
-        // Show error in the fetch-status area too (more persistent)
-        var statusEl = document.getElementById("fetch-status");
-        if (statusEl) {
-          statusEl.innerHTML = '<span style="color:#ef4444;">' + msg + '</span>';
-        }
-
-        setTimeout(function() {
-          progressOverlay.classList.remove("active");
-          setTimeout(function() {
-            progressError.classList.remove("show");
-            progressBarFill.style.background = "";
-            progressBarFill.style.width = "0%";
-            for (var j = 0; j < totalStages; j++) {
-              setStage(j, "pending");
-            }
-            progressDone.classList.remove("show");
-            progressTitle.textContent = "Analyzing Structure";
-          }, 400);
-        }, 4000);  // longer display for user to read
-      }
-
-      function renderErrorResult(msg) {
-        function esc(s) {
-          return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
-        if (!resultsContainer) {
-          resultsContainer = document.getElementById("results-root");
-        }
-
-        var container = resultsContainer || document.querySelector(".content");
-        if (!container) return;
-        container.setAttribute("data-result-mode", "error");
-
-        var existing = container.querySelector(".main-area");
-        if (existing) existing.remove();
-
-        var errorBox = container.querySelector(".error-box");
-        if (errorBox) errorBox.remove();
-
-        var placeholder = container.querySelector(".placeholder");
-        if (placeholder) placeholder.style.display = "none";
-
-        container.insertAdjacentHTML("beforeend", '<div class="error-box">' + esc(msg) + '</div>');
-      }
-
-      function buildResultHTML(data) {
-        function esc(s) {
-          if (!s) return "";
-          return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
-        if (data.analysis_mode === "protein_only") {
-          var summary = data.protein_summary || {};
-          var counts = summary.residue_type_counts || {};
-          var chains = summary.chains || [];
-          var chainRows = chains.length ? chains.map(function(chain) {
-            return '<tr>' +
-              '<td>' + esc(chain.chain_id) + '</td>' +
-              '<td>' + (chain.residue_count || 0) + '</td>' +
-              '<td>' + (chain.atom_count || 0) + '</td>' +
-              '<td>' + (chain.hydrophobic || 0) + '</td>' +
-              '<td>' + ((chain.positive || 0) + (chain.negative || 0)) + '</td>' +
-            '</tr>';
-          }).join("") : '<tr><td colspan="5">No protein chains detected.</td></tr>';
-
-          return '<div class="main-area results-container fade-in">' +
-            '<div>' +
-              '<h2>3D Structure Viewer</h2>' +
-              '<div class="viewer-box"><div id="viewer"></div></div>' +
-              '<div class="viewer-tools">' +
-                '<button class="tool-btn" id="reset-view-btn">Reset View</button>' +
-              '</div>' +
-              '<div class="legend">' +
-                '<div><span class="yellow-dot"></span> Protein-only analysis mode</div>' +
-              '</div>' +
-            '</div>' +
-            '<div>' +
-              '<h2>Analysis Result</h2>' +
-              '<div class="ai-dashboard">' +
-                '<div class="ai-dashboard-title">Protein-only structural overview</div>' +
-                '<div class="ai-card">' +
-                  '<h3>Structure Summary</h3>' +
-                  '<p>' + (summary.chain_count || 0) + ' chain(s), ' +
-                    (summary.residue_count || 0) + ' protein residues, ' +
-                    (summary.atom_count || 0) + ' protein atoms.</p>' +
-                '</div>' +
-                '<div class="ai-card">' +
-                  '<h3>Residue Chemistry</h3>' +
-                  '<p>Hydrophobic: ' + (counts.hydrophobic || 0) +
-                    ' · Polar: ' + (counts.polar || 0) +
-                    ' · Charged: ' + ((counts.positive || 0) + (counts.negative || 0)) +
-                    ' · Other: ' + (counts.other || 0) + '</p>' +
-                '</div>' +
-                '<div class="ai-card">' +
-                  '<h3>Secondary Structure</h3>' +
-                  '<p>' + esc((summary.secondary_structure || {}).note || "Secondary structure statistics are not calculated yet.") + '</p>' +
-                '</div>' +
-                '<div class="ai-card">' +
-                  '<h3>Chain Information</h3>' +
-                  '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
-                    '<thead><tr><th align="left">Chain</th><th align="left">Residues</th><th align="left">Atoms</th><th align="left">Hydrophobic</th><th align="left">Charged</th></tr></thead>' +
-                    '<tbody>' + chainRows + '</tbody>' +
-                  '</table>' +
-                '</div>' +
-                (function() {
-                  if (data.ai_sections && Object.keys(data.ai_sections).length) {
-                    var cards = '';
-                    Object.keys(data.ai_sections).forEach(function(k) {
-                      cards += '<div class="ai-card"><h3>' + esc(k) + '</h3><p>' + (data.ai_sections[k] || '') + '</p></div>';
-                    });
-                    return cards;
-                  }
-                  return '';
-                })() +
-                '<div class="ai-card">' +
-                  '<h3>Mode</h3>' +
-                  '<p>Ligand pocket contact analysis was skipped.</p>' +
-                '</div>' +
-                '<details>' +
-                  '<summary>View full raw report</summary>' +
-                  '<div class="raw-report">' + esc(data.result_text) + '</div>' +
-                '</details>' +
-              '</div>' +
-            '</div>' +
-          '</div>';
-        }
-
-        var downloadLinks = "";
-        if (data.report_download_url) {
-          downloadLinks += '<a href="' + data.report_download_url + '" class="download-btn">Download Report (TXT)</a>';
-        }
-        if (data.json_download_url) {
-          downloadLinks += '<a href="' + data.json_download_url + '" class="download-btn json">Download Data (JSON)</a>';
-        }
-        if (data.csv_download_url) {
-          downloadLinks += '<a href="' + data.csv_download_url + '" class="download-btn csv">Download Data (CSV)</a>';
-        }
-        if (data.ai_report_download_url) {
-          downloadLinks += '<a href="' + data.ai_report_download_url + '" class="download-btn ai">Download AI Interpretation</a>';
-        }
-
-        var html = '<div class="main-area results-container fade-in">' +
-          '<div>' +
-            '<h2>3D Structure Viewer</h2>' +
-            '<div class="viewer-box"><div id="viewer"></div></div>' +
-            '<div class="viewer-tools">' +
-              '<button class="tool-btn" id="reset-view-btn">Reset View</button>' +
-              '<button class="tool-btn" id="pocket-view-btn">Focus Ligand</button>' +
-              '<button class="tool-btn" id="hotspot-view-btn">Focus Hotspots</button>' +
-              '<button class="tool-btn" id="surface-toggle-btn">Show Pocket Surface</button>' +
-            '</div>' +
-            '<div class="legend">' +
-              '<div><span class="yellow-dot"></span> Yellow = hydrophobic interaction lines</div>' +
-              '<div><span class="blue-dot"></span> Blue = polar / possible H-bond lines</div>' +
-              '<div><span class="lime-dot"></span> Lime = van der Waals interaction lines</div>' +
-              '<div><span class="orange-dot"></span> Orange = AI hotspot residues</div>' +
-              '<div><span class="red-dot"></span> Red = lost WT contact residues</div>' +
-              '<div><span class="green-dot"></span> Green = gained mutant contact residues</div>' +
-            '</div>' +
-          '</div>' +
-          '<div>' +
-            '<h2>Analysis Result</h2>' +
-            '<div class="ai-dashboard">' +
-              '<div class="ai-dashboard-title">AI Structural Dashboard</div>' +
-              '<div class="ai-card">' +
-                '<h3>Key Hotspot Residues</h3>' +
-                '<ul id="hotspot-list"><li>Detecting hotspot residues...</li></ul>' +
-              '</div>' +
-              (function() {
-                if (data.ai_sections && Object.keys(data.ai_sections).length) {
-                  var cards = '';
-                  Object.keys(data.ai_sections).forEach(function(k) {
-                    cards += '<div class="ai-card"><h3>' + esc(k) + '</h3><p>' + (data.ai_sections[k] || '') + '</p></div>';
-                  });
-                  return cards;
-                }
-                return '<div class="ai-card"><h3>AI Structural Interpretation</h3><p>' + (data.ai_html || '') + '</p></div>';
-              })() +
-              '<details>' +
-                '<summary>View full raw report</summary>' +
-                '<div class="raw-report">' + esc(data.result_text) + '</div>' +
-              '</details>' +
-            '</div>' +
-            '<div>' + downloadLinks + '</div>' +
-          '</div>' +
-        '</div>';
-
-        return html;
-      }
-
-      function renderResults(data) {
-        if (!resultsContainer) {
-          resultsContainer = document.getElementById("results-root");
-        }
-
-        var container = resultsContainer || document.querySelector(".content");
-        if (!container) return;
-        container.setAttribute("data-result-mode", data.analysis_mode || "ligand");
-
-        var existing = container.querySelector(".main-area");
-        if (existing) existing.remove();
-
-        container.insertAdjacentHTML("beforeend", buildResultHTML(data));
-
-        var errorBox = container.querySelector(".error-box");
-        if (errorBox) errorBox.remove();
-
-        var placeholder = container.querySelector(".placeholder");
-        if (placeholder) placeholder.style.display = "none";
-      }
-      window.PSCRenderResults = renderResults;
-
-      function initViewerFromData(data) {
-        if (!data.pdb_url) return;
-
-        var viewerEl = document.getElementById("viewer");
-        if (!viewerEl) return;
-
-        window._analysisData = data;
-
-        if (data.analysis_mode === "protein_only") {
-          fetch(data.pdb_url)
-            .then(function(response) { return response.text(); })
-            .then(function(pdbData) {
-              var proteinViewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
-              proteinViewer.addModel(pdbData, "pdb");
-              proteinViewer.setStyle({}, { cartoon: { color: "spectrum" } });
-              proteinViewer.zoomTo();
-              proteinViewer.render();
-              proteinViewer.resize();
-
-              var resetBtn = document.getElementById("reset-view-btn");
-              if (resetBtn) {
-                resetBtn.onclick = function() {
-                  proteinViewer.zoomTo();
-                  proteinViewer.render();
-                };
-              }
-            });
-          return;
-        }
-
-        var scriptEl = document.getElementById("interaction-data");
-        if (!scriptEl) {
-          scriptEl = document.createElement("script");
-          scriptEl.id = "interaction-data";
-          scriptEl.type = "application/json";
-          document.body.appendChild(scriptEl);
-        }
-        scriptEl.textContent = JSON.stringify(data.interaction_data || []);
-
-        var hotspotEl = document.getElementById("hotspot-residues");
-        if (!hotspotEl) {
-          hotspotEl = document.createElement("script");
-          hotspotEl.id = "hotspot-residues";
-          hotspotEl.type = "application/json";
-          document.body.appendChild(hotspotEl);
-        }
-        hotspotEl.textContent = JSON.stringify(data.hotspot_residues || []);
-
-        var lostEl = document.getElementById("lost-residues");
-        if (!lostEl) {
-          lostEl = document.createElement("script");
-          lostEl.id = "lost-residues";
-          lostEl.type = "application/json";
-          document.body.appendChild(lostEl);
-        }
-        lostEl.textContent = JSON.stringify(data.lost_residues || []);
-
-        var gainedEl = document.getElementById("gained-residues");
-        if (!gainedEl) {
-          gainedEl = document.createElement("script");
-          gainedEl.id = "gained-residues";
-          gainedEl.type = "application/json";
-          document.body.appendChild(gainedEl);
-        }
-        gainedEl.textContent = JSON.stringify(data.gained_residues || []);
-
-        var interactions = data.interaction_data || [];
-        var hotspotResidues = data.hotspot_residues || [];
-        var lostResidues = data.lost_residues || [];
-        var gainedResidues = data.gained_residues || [];
-
-        var ligandName = "";
-        try {
-          var formData = new FormData(document.querySelector("#tab-single form"));
-          ligandName = (formData.get("ligand_name") || "").toUpperCase();
-        } catch(e) {}
-
-        var hotspotList = document.getElementById("hotspot-list");
-        var viewer = null;
-        var surfaceOn = false;
-        var pocketResidueSelections = new Set();
-
-        function interactionColor(interaction) {
-          return interaction.color || "yellow";
-        }
-
-        function applyBaseStyle() {
-          viewer.setStyle({}, { cartoon: { color: "spectrum" } });
-          viewer.setStyle({ resn: ligandName }, { stick: { color: "red", radius: 0.25 } });
-          viewer.addStyle(
-            { within: { distance: 5, sel: { resn: ligandName } } },
-            { stick: { color: "yellow", radius: 0.18 } }
-          );
-          interactions.forEach(function(interaction) {
-            pocketResidueSelections.add(interaction.chain_id + ":" + interaction.res_id);
-          });
-        }
-
-        function drawInteractionLines() {
-          interactions.forEach(function(interaction) {
-            viewer.addCylinder({
-              start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
-              end:   { x: interaction.end[0],   y: interaction.end[1],   z: interaction.end[2] },
-              radius: 0.08, color: interactionColor(interaction), dashed: true
-            });
-          });
-        }
-
-        function drawDistanceLabels() {
-          var top5 = hotspotResidues.slice(0, 5);
-          var shown = 0;
-          interactions.forEach(function(interaction) {
-            if (shown >= 5) return;
-            var isTop = top5.some(function(r) {
-              return r.chain_id === interaction.chain_id && String(r.res_id) === String(interaction.res_id);
-            });
-            if (!isTop) return;
-            shown++;
-            var mx = (interaction.start[0] + interaction.end[0]) / 2;
-            var my = (interaction.start[1] + interaction.end[1]) / 2;
-            var mz = (interaction.start[2] + interaction.end[2]) / 2;
-            viewer.addLabel(interaction.distance.toFixed(1) + " Å", {
-              position: { x: mx, y: my, z: mz },
-              fontColor: interactionColor(interaction), fontSize: 10, showBackground: false
-            });
-          });
-        }
-
-        function drawHotspots() {
-          hotspotResidues.forEach(function(residue) {
-            viewer.setStyle(
-              { chain: residue.chain_id, resi: residue.res_id },
-              { stick: { color: "orange", radius: 0.45 }, sphere: { color: "orange", radius: 0.75 } }
-            );
-            viewer.addResLabels(
-              { chain: residue.chain_id, resi: residue.res_id },
-              { fontColor: "black", backgroundColor: "orange", fontSize: 12, showBackground: true }
-            );
-          });
-        }
-
-        function drawMutationHighlights() {
-          lostResidues.forEach(function(residue) {
-            viewer.setStyle(
-              { chain: residue.chain_id, resi: residue.res_id },
-              { stick: { color: "red", radius: 0.35 } }
-            );
-          });
-          gainedResidues.forEach(function(residue) {
-            viewer.setStyle(
-              { chain: residue.chain_id, resi: residue.res_id },
-              { stick: { color: "green", radius: 0.35 } }
-            );
-          });
-        }
-
-        function showPocketSurface() {
-          pocketResidueSelections.forEach(function(key) {
-            var parts = key.split(":");
-            viewer.addSurface($3Dmol.SurfaceType.VDW, { opacity: 0.4, color: "yellow" }, { chain: parts[0], resi: parts[1] });
-          });
-        }
-
-        function redrawFullView() {
-          viewer.removeAllShapes();
-          viewer.removeAllLabels();
-          viewer.removeAllSurfaces();
-          applyBaseStyle();
-          drawInteractionLines();
-          drawDistanceLabels();
-          drawHotspots();
-          drawMutationHighlights();
-          if (surfaceOn) showPocketSurface();
-          viewer.zoomTo({ resn: ligandName });
-          viewer.render();
-          viewer.resize();
-          var surfaceBtn = document.getElementById("surface-toggle-btn");
-          if (surfaceBtn) {
-            surfaceBtn.textContent = surfaceOn ? "Hide Pocket Surface" : "Show Pocket Surface";
-            if (surfaceOn) surfaceBtn.classList.add("active");
-            else surfaceBtn.classList.remove("active");
-          }
-        }
-
-        function focusResidue(residue) {
-          viewer.removeAllShapes();
-          viewer.removeAllLabels();
-          viewer.removeAllSurfaces();
-          viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.32 } });
-          viewer.setStyle({ resn: ligandName }, { stick: { color: "yellow", radius: 0.3 } });
-          viewer.setStyle(
-            { chain: residue.chain_id, resi: residue.res_id },
-            { stick: { color: "orange", radius: 0.55 }, sphere: { color: "orange", radius: 1.0 } }
-          );
-          viewer.addResLabels(
-            { chain: residue.chain_id, resi: residue.res_id },
-            { fontColor: "black", backgroundColor: "orange", fontSize: 14, showBackground: true }
-          );
-          interactions.filter(function(interaction) {
-            return interaction.res_name === residue.res_name &&
-                   interaction.res_id === residue.res_id &&
-                   interaction.chain_id === residue.chain_id;
-          }).forEach(function(interaction) {
-            viewer.addCylinder({
-              start: { x: interaction.start[0], y: interaction.start[1], z: interaction.start[2] },
-              end: { x: interaction.end[0], y: interaction.end[1], z: interaction.end[2] },
-              radius: 0.13, color: interactionColor(interaction), dashed: true
-            });
-            var mx = (interaction.start[0] + interaction.end[0]) / 2;
-            var my = (interaction.start[1] + interaction.end[1]) / 2;
-            var mz = (interaction.start[2] + interaction.end[2]) / 2;
-            viewer.addLabel(interaction.distance.toFixed(1) + " Å", {
-              position: { x: mx, y: my, z: mz },
-              fontColor: interactionColor(interaction), fontSize: 11, showBackground: false
-            });
-          });
-          viewer.zoomTo({ chain: residue.chain_id, resi: residue.res_id });
-          viewer.render();
-        }
-
-        function focusHotspots() {
-          viewer.removeAllShapes();
-          viewer.removeAllLabels();
-          viewer.removeAllSurfaces();
-          viewer.setStyle({}, { cartoon: { color: "lightgrey", opacity: 0.25 } });
-          viewer.setStyle({ resn: ligandName }, { stick: { color: "yellow", radius: 0.3 } });
-          drawHotspots();
-          drawInteractionLines();
-          drawDistanceLabels();
-          if (hotspotResidues.length > 0) {
-            viewer.zoomTo(hotspotResidues.map(function(r) { return { chain: r.chain_id, resi: r.res_id }; }));
-          } else {
-            viewer.zoomTo({ resn: ligandName });
-          }
-          viewer.render();
-        }
-
-        if (hotspotList) {
-          hotspotList.innerHTML = "";
-          if (hotspotResidues.length === 0) {
-            hotspotList.innerHTML = "<li>No hotspot residues detected.</li>";
-          } else {
-            hotspotResidues.forEach(function(residue, index) {
-              var li = document.createElement("li");
-              var btn = document.createElement("button");
-              btn.className = "hotspot-btn";
-              btn.innerHTML = '<span class="hotspot-rank">#' + (index + 1) + '</span>' +
-                residue.res_name + residue.res_id + ' chain ' + residue.chain_id + ' · ' +
-                residue.distance + ' Å · ' + (residue.interaction_type || "contact");
-              btn.onclick = (function(r) { return function() { focusResidue(r); }; })(residue);
-              li.appendChild(btn);
-              hotspotList.appendChild(li);
-            });
-          }
-        }
-
-        fetch(data.pdb_url)
-          .then(function(response) { return response.text(); })
-          .then(function(pdbData) {
-            viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
-            viewer.addModel(pdbData, "pdb");
-            redrawFullView();
-
-            document.getElementById("reset-view-btn").onclick = function() { redrawFullView(); };
-            document.getElementById("pocket-view-btn").onclick = function() {
-              viewer.zoomTo({ resn: ligandName }); viewer.render();
-            };
-            document.getElementById("hotspot-view-btn").onclick = function() { focusHotspots(); };
-            document.getElementById("surface-toggle-btn").onclick = function() {
-              surfaceOn = !surfaceOn; redrawFullView();
-            };
-          });
-      }
-      window.PSCInitViewerFromData = initViewerFromData;
-
-      function handleResponse(data) {
-        fetchComplete = true;
-
-        if (!data.success) {
-          showError(data.error_text || "Unknown error");
-          return;
-        }
-
-        responseData = data;
-        completeAllStages();
-
-        setTimeout(function() {
-          progressOverlay.classList.remove("active");
-          renderResults(data);
-          if (window.PSCTabState) {
-            window.PSCTabState.save(window.PSCTabState.getActiveTabId(), data);
-          }
-          if (window.PSCRefreshStats) window.PSCRefreshStats();
-          setTimeout(function() {
-            initViewerFromData(data);
-          }, 150);
-        }, 800);
-      }
-
-      function handleFetchError(err) {
-        fetchComplete = true;
-        showError("Network error: " + (err.message || "Could not reach server"));
-      }
-
-      function getAnalysisFileState() {
-        return window.PSCCurrentStructure || window.PSCAnalysisStructure || window.PSCAnalysisFile || {
-          name: null,
-          size: null,
-          source: null,
-          fileObject: null,
-          pdbFilename: null,
-          pdbText: null,
-          pdbId: null,
-          ready: false
-        };
-      }
-
-      function currentStructureMessage(file) {
-        if (!file || !file.ready) {
-          return "Please load a structure from RCSB or upload a local PDB file first.";
-        }
-        if (file.source === "rcsb") {
-          return "Current Structure: " + (file.pdbId || file.name || "PDB") + " from RCSB";
-        }
-        return "Current Structure: " + (file.name || "PDB file") + " from Local Upload";
-      }
-
-      function setSharedStructureMessage(form, file, isError) {
-        var box = null;
-        if (form && form.closest("#tab-mutation")) {
-          box = document.getElementById("mutation-structure-source");
-        }
-        if (!box) return;
-        box.textContent = isError ? "Please load a structure from RCSB or upload a local PDB file first." : currentStructureMessage(file);
-        box.classList.toggle("ready", !isError && !!file.ready);
-        box.classList.toggle("warning", isError || !file.ready);
-      }
-
-      function syncSharedStructureForm(form, file) {
-        var filenameInput = form.querySelector(".shared-pdb-filename");
-        var fileInput = form.querySelector(".shared-structure-file");
-
-        if (filenameInput) {
-          filenameInput.value = file.pdbFilename || "";
-        }
-
-        if (fileInput) {
-          fileInput.value = "";
-          if (file.fileObject) {
-            var dt = new DataTransfer();
-            dt.items.add(file.fileObject);
-            fileInput.files = dt.files;
-          }
-        }
-      }
-
-      function syncCompareForm() {
-        var wtHidden = document.getElementById("wt-pdb-filename-hidden");
-        var mutHidden = document.getElementById("mut-pdb-filename-hidden");
-        if (wtHidden) wtHidden.value = wtStructure.pdbFilename || "";
-        if (mutHidden) mutHidden.value = mutantStructure.pdbFilename || "";
-      }
-
-      function showCompareError(msg) {
-        var statusEl = document.getElementById("compare-status");
-        var html = '<span style="color:#ef4444;">' + msg + '</span>';
-        if (statusEl) statusEl.innerHTML = html;
-      }
-
-      function validateCompareForm(event, form) {
-        if (!wtStructure.ready || !mutantStructure.ready) {
-          if (event) event.preventDefault();
-          showCompareError("Please load both WT and mutant structures from RCSB or local PDB files first.");
-          updateCompareStructurePanel("wt");
-          updateCompareStructurePanel("mut");
-          return false;
-        }
-        syncCompareForm();
-        return true;
-      }
-      window.PSCValidateCompareForm = validateCompareForm;
-
-      function showInlineAnalysisError(msg) {
-        var analysisStatus = document.getElementById("analysis-status");
-        var fetchStatus = document.getElementById("fetch-status");
-        var html = '<span style="color:#ef4444;">' + msg + '</span>';
-        if (analysisStatus) analysisStatus.innerHTML = html;
-        if (fetchStatus) fetchStatus.innerHTML = html;
-      }
-
-      function showInlineAnalysisInfo(msg) {
-        var analysisStatus = document.getElementById("analysis-status");
-        var fetchStatus = document.getElementById("fetch-status");
-        var html = '<span style="color:#64748b;">' + msg + '</span>';
-        if (analysisStatus) analysisStatus.innerHTML = html;
-        if (fetchStatus) fetchStatus.innerHTML = html;
-      }
-
-      // Intercept Single Analysis form submit
-      var singleForm = document.querySelector("#tab-single form.analysis-form");
-      console.log("[PSC] singleForm found:", !!singleForm);
-
-      if (singleForm) {
-        singleForm.setAttribute("novalidate", "novalidate");
-        singleForm.addEventListener("submit", function(e) {
-          console.log("handleAnalyze called");
-          e.preventDefault();
-          console.log("[PSC] Form submit intercepted");
-
-          var btn = singleForm.querySelector("button[type=submit]");
-          var ligandInput = document.getElementById("ligand-analyze");
-          var ligandName = ligandInput ? ligandInput.value.trim().toUpperCase() : "";
-          var file = getAnalysisFileState();
-          var skipInput = document.getElementById("skip-ligand-mode");
-          var mode = (skipInput && skipInput.checked) ? "protein_only" : "ligand";
-
-          console.log("[PSC] State:", {
-            analysisMode: mode,
-            analysisFile: {
-              name: file.name,
-              source: file.source,
-              ready: file.ready,
-              hasFileObject: !!file.fileObject
-            },
-            ligandName: ligandName,
-            ligandDetection: window.PSCLigandDetectionState,
-            canAnalyze: file.ready && (mode === "protein_only" || !!ligandName)
-          });
-
-          // Validate
-          if (!file.ready) {
-            showInlineAnalysisError("Please upload a PDB file or fetch from RCSB first.");
-            console.log("[PSC] ABORT: analysisFile not ready");
-            return;
-          }
-
-          // === Mode: ligand ===
-          if (mode === "ligand") {
-            if (!ligandName) {
-              showInlineAnalysisInfo("Please enter a ligand name, or enable protein-only analysis mode.");
-              console.log("[PSC] ABORT: ligand mode requires ligandName");
-              return;
-            }
-          }
-
-          // === Mode: protein_only ===
-          if (mode === "protein_only") {
-            ligandName = "";  // explicitly clear
-          }
-
-          // Build FormData
-          var fd = new FormData();
-          fd.append("ligand_name", ligandName);
-          if (mode === "protein_only") {
-            fd.append("skipLigand", "true");
-          }
-          if (file.fileObject) {
-            fd.append("pdb_file", file.fileObject, file.name);
-          }
-          if (file.pdbFilename) {
-            fd.append("pdb_filename", file.pdbFilename);
-          }
-
-          console.log("[PSC] FormData:", {
-            mode: mode,
-            ligand_name: fd.get("ligand_name"),
-            skipLigand: fd.get("skipLigand"),
-            has_pdb_file: fd.has("pdb_file"),
-            has_pdb_filename: fd.has("pdb_filename")
-          });
-
-          if (!fd.has("pdb_file") && !fd.has("pdb_filename")) {
-            showInlineAnalysisError("PDB file state is incomplete. Please upload or fetch the file again.");
-            console.log("[PSC] ABORT: FormData missing file");
-            return;
-          }
-
-          console.log("[PSC] Proceeding with analysis...");
-
-          if (btn) {
-            btn.disabled = true;
-            var label = btn.querySelector(".btn-label");
-            if (label) label.textContent = "Analyzing...";
-          }
-
-          // Reset progress state
-          currentStage = 0;
-          fetchComplete = false;
-          responseData = null;
-          clearStageTimers();
-          progressBarFill.style.background = "";
-          progressBarFill.style.width = "0%";
-          progressDone.classList.remove("show");
-          progressError.classList.remove("show");
-          progressTitle.textContent = "Analyzing Structure";
-
-          for (var i = 0; i < totalStages; i++) {
-            setStage(i, "pending");
-          }
-
-          progressOverlay.classList.add("active");
-          setStage(0, "active");
-          advanceStage();
-
-          console.log("sending analyze request", {
-            analysisMode: mode,
-            ligandName: fd.get("ligand_name"),
-            skipLigand: fd.get("skipLigand"),
-            hasFileObject: !!file.fileObject,
-            hasPdbFilename: !!file.pdbFilename,
-            analysisFile: {name: file.name, size: file.size, source: file.source, ready: file.ready},
-            canAnalyze: file.ready && (mode === "protein_only" || !!fd.get("ligand_name"))
-          });
-
-          fetch("/analyze", {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "X-Requested-With": "XMLHttpRequest"
-            },
-            body: fd
-          })
-            .then(function(resp) {
-              console.log("[PSC] Response status:", resp.status);
-              return resp.json();
-            })
-            .then(function(data) {
-              console.log("[PSC] Response data.success:", data.success);
-              if (!data.success) {
-                console.log("[PSC] Server error:", data.error_text);
-              }
-              handleResponse(data);
-            })
-            .catch(function(err) {
-              console.error("[PSC] Fetch error:", err);
-              handleFetchError(err);
-            })
-            .finally(function() {
-              if (btn) {
-                btn.disabled = false;
-                var label = btn.querySelector(".btn-label");
-                if (label) label.textContent = "Analyze Structure";
-              }
-            });
-        });
-        console.log("[PSC] Submit listener attached");
-      } else {
-        console.error("[PSC] Could not find single form!");
-      }
-
-      // AJAX submission for mutation scan and compare forms
-      document.querySelectorAll("#tab-mutation form.analysis-form, #tab-compare form.analysis-form").forEach(function(form) {
-        form.setAttribute("novalidate", "novalidate");
-        form.addEventListener("submit", function(e) {
-          e.preventDefault();
-          var isCompareForm = !!form.closest("#tab-compare");
-
-          // --- Validation ---
-          if (isCompareForm) {
-            var wt = window.PSCWTStructure || {};
-            var mut = window.PSCMutantStructure || {};
-            if (!wt.ready || !mut.ready) {
-              showCompareError("Please load both WT and mutant structures from RCSB or local PDB files first.");
-              return;
-            }
-          } else {
-            var file = getAnalysisFileState();
-            if (!file.ready) {
-              setSharedStructureMessage(form, file, true);
-              return;
-            }
-            syncSharedStructureForm(form, file);
-            setSharedStructureMessage(form, file, false);
-          }
-
-          // --- Build FormData ---
-          var fd;
-          if (isCompareForm) {
-            fd = new FormData();
-            var ligandName = (document.getElementById("ligand-compare") || {}).value || "";
-            fd.append("compare_ligand_name", ligandName.trim().toUpperCase());
-            var wt2 = window.PSCWTStructure || {};
-            var mut2 = window.PSCMutantStructure || {};
-            if (wt2.fileObject) {
-              fd.append("wt_file", wt2.fileObject, wt2.name);
-            }
-            if (wt2.pdbFilename) {
-              fd.append("wt_pdb_filename", wt2.pdbFilename);
-            }
-            if (mut2.fileObject) {
-              fd.append("mut_file", mut2.fileObject, mut2.name);
-            }
-            if (mut2.pdbFilename) {
-              fd.append("mut_pdb_filename", mut2.pdbFilename);
-            }
-          } else {
-            fd = new FormData(form);
-          }
-
-          // --- UI: button state ---
-          var btn = form.querySelector("button[type=submit]");
-          var btnLabel = btn ? btn.querySelector(".btn-label") : null;
-          var btnOrigText = btnLabel ? btnLabel.textContent : "";
-          if (btn) {
-            btn.disabled = true;
-            if (btnLabel) btnLabel.textContent = "Analyzing...";
-          }
-
-          // --- Progress overlay ---
-          currentStage = 0;
-          fetchComplete = false;
-          responseData = null;
-          clearStageTimers();
-          progressBarFill.style.background = "";
-          progressBarFill.style.width = "0%";
-          progressDone.classList.remove("show");
-          progressError.classList.remove("show");
-          progressTitle.textContent = "Analyzing Structure";
-          for (var i = 0; i < totalStages; i++) {
-            setStage(i, "pending");
-          }
-          progressOverlay.classList.add("active");
-          setStage(0, "active");
-          advanceStage();
-
-          // --- Fetch ---
-          var endpoint = isCompareForm ? "/compare" : "/mutation_scan";
-          fetch(endpoint, {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "X-Requested-With": "XMLHttpRequest"
-            },
-            body: fd
-          })
-            .then(function(resp) { return resp.json(); })
-            .then(function(data) { handleResponse(data); })
-            .catch(function(err) { handleFetchError(err); })
-            .finally(function() {
-              if (btn) {
-                btn.disabled = false;
-                if (btnLabel) btnLabel.textContent = btnOrigText;
-              }
-            });
-        });
-      });
-    })();
-  </script>
-
-  <!-- Dark mode toggle -->
-  <script>
-    (function() {
-      var html = document.documentElement;
-      var toggle = document.getElementById("dark-mode-toggle");
-      var icon = toggle ? toggle.querySelector(".dark-mode-icon") : null;
-      var STORAGE_KEY = "psc-dark-mode";
-
-      function setDark(enabled) {
-        if (enabled) {
-          html.classList.add("dark");
-          if (icon) icon.textContent = "☀️";
-        } else {
-          html.classList.remove("dark");
-          if (icon) icon.textContent = "🌙";
-        }
-        try { localStorage.setItem(STORAGE_KEY, enabled ? "1" : "0"); } catch(e) {}
-      }
-
-      function isDark() {
-        return html.classList.contains("dark");
-      }
-
-      // Initialize: check localStorage first, then system preference
-      var saved = null;
-      try { saved = localStorage.getItem(STORAGE_KEY); } catch(e) {}
-      if (saved === "1") {
-        setDark(true);
-      } else if (saved === "0") {
-        setDark(false);
-      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        setDark(true);
-      }
-
-      if (toggle) {
-        toggle.addEventListener("click", function() {
-          setDark(!isDark());
-        });
-      }
-    })();
-  </script>
-
-  <!-- Stats + Recent Analyses -->
-  <script>
-    (function() {
-      var lastTotal = 0;
-      var refreshTimer = null;
-      var lastRecentSignature = "";
-
-      function esc(s) {
-        return String(s || "")
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      }
-
-      function animateNumber(el, target) {
-        var current = parseInt(el.textContent.replace(/,/g, ""), 10) || 0;
-        if (current === target) return;
-        var start = current;
-        var duration = 800;
-        var startTime = null;
-
-        function step(timestamp) {
-          if (!startTime) startTime = timestamp;
-          var elapsed = timestamp - startTime;
-          var progress = Math.min(elapsed / duration, 1);
-          var eased = 1 - Math.pow(1 - progress, 3);
-          var val = Math.floor(start + (target - start) * eased);
-          el.textContent = val.toLocaleString();
-          if (progress < 1) {
-            requestAnimationFrame(step);
-          }
-        }
-
-        requestAnimationFrame(step);
-      }
-
-      function timeAgo(isoString) {
-        var then = new Date(isoString);
-        var now = new Date();
-        var seconds = Math.floor((now - then) / 1000);
-        if (seconds < 60) return "just now";
-        var minutes = Math.floor(seconds / 60);
-        if (minutes === 1) return "1 min ago";
-        if (minutes < 60) return minutes + " min ago";
-        var hours = Math.floor(minutes / 60);
-        if (hours === 1) return "1 hour ago";
-        if (hours < 24) return hours + " hours ago";
-        var days = Math.floor(hours / 24);
-        if (days === 1) return "1 day ago";
-        return days + " days ago";
-      }
-
-      function typeLabel(type) {
-        if (type === "single") return "single analysis";
-        if (type === "mutation") return "mutation scan";
-        if (type === "comparison") return "comparison";
-        return type;
-      }
-
-      function typeCssClass(type) {
-        if (type === "single") return "single";
-        if (type === "mutation") return "mutation";
-        if (type === "comparison") return "comparison";
-        return "";
-      }
-
-      function extractDisplayName(pdbName) {
-        if (!pdbName) return "";
-        // For RCSB files: "RCSB_1HSG_97d9aa14.pdb" → "1HSG"
-        var m = pdbName.match(/^RCSB_([A-Za-z0-9]{4})_/);
-        if (m) return m[1];
-        // For comparison: "WT_1HSG.pdb vs MUT_1HSG.pdb" → "WT vs MUT"
-        if (pdbName.indexOf(" vs ") !== -1) {
-          return pdbName.replace(/\.pdb/g, "");
-        }
-        // For other prefixed files: strip prefix
-        return pdbName.replace(/\.pdb$/i, "");
-      }
-
-      function buildDetail(entry) {
-        var parts = [];
-        if (entry.ligand_name) parts.push("ligand " + entry.ligand_name);
-        if (entry.mutation) parts.push(entry.mutation);
-        if (entry.mode === "protein_only") parts.push("protein-only");
-        if (entry.source) parts.push(entry.source === "rcsb" ? "RCSB" : entry.source);
-        return parts.join(" · ") || "";
-      }
-
-      function loadRecent() {
-        fetch("/api/recent_analyses")
-          .then(function(r) { return r.json(); })
-          .then(function(records) {
-            records = Array.isArray(records) ? records : [];
-            var section = document.getElementById("recent-section");
-            var list = document.getElementById("recent-list");
-            if (!section || !list) return;
-
-            section.classList.remove("recent-skeleton");
-            var signature = JSON.stringify(records);
-            var shouldAnimate = lastRecentSignature && signature !== lastRecentSignature;
-
-            if (!records.length) {
-              list.innerHTML = '<div class="recent-item" style="color:#64748b;">No analyses yet. Run your first analysis above.</div>';
-              lastRecentSignature = signature;
-              return;
-            }
-
-            var html = "";
-            records.forEach(function(entry) {
-              var analysisType = entry.analysis_type || entry.type || "single";
-              var pdbLabel = entry.pdb_id || extractDisplayName(entry.pdb_name);
-              html +=
-                '<div class="recent-item">' +
-                  '<span class="ri-type ' + typeCssClass(analysisType) + '">' + esc(typeLabel(analysisType)) + '</span>' +
-                  '<span class="ri-body">' +
-                    '<span class="ri-pdb" title="' + esc(entry.pdb_name || pdbLabel) + '">' + esc(pdbLabel) + '</span>' +
-                    '<span class="ri-detail">' + esc(buildDetail(entry)) + '</span>' +
-                  '</span>' +
-                  '<span class="ri-time">' + esc(timeAgo(entry.timestamp)) + '</span>' +
-                '</div>';
-            });
-            list.innerHTML = html;
-            if (shouldAnimate) {
-              list.classList.remove("is-updating");
-              void list.offsetWidth;
-              list.classList.add("is-updating");
-            }
-            lastRecentSignature = signature;
-          })
-          .catch(function() {});
-      }
-
-      function loadStats() {
-        fetch("/api/stats")
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var counter = document.getElementById("stats-counter");
-            if (!counter) return;
-            var valueEl = counter.querySelector(".counter-value");
-            if (!valueEl) return;
-            counter.classList.remove("skeleton");
-            var target = data.total_analyses || 0;
-            animateNumber(valueEl, target);
-            lastTotal = target;
-          })
-          .catch(function() {});
-      }
-
-      function refreshBoth() {
-        loadStats();
-        loadRecent();
-      }
-
-      // Initial load
-      refreshBoth();
-
-      // Auto-refresh every 10 seconds
-      refreshTimer = setInterval(refreshBoth, 10000);
-
-      // Expose refresh hook for after-analysis refresh
-      window.PSCRefreshStats = refreshBoth;
-    })();
-  </script>
 </body>
 </html>

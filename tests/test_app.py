@@ -30,7 +30,7 @@ class AppTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Protein Structure Copilot", response.data)
-        self.assertIn(b"Select an analysis mode above", response.data)
+        self.assertIn(b"Select an analysis mode", response.data)
 
     def test_health_route(self):
         response = self.client.get("/health")
@@ -202,9 +202,8 @@ class AppTest(unittest.TestCase):
                     )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Mutation Impact Summary", response.data)
+        self.assertIn(b"Mutation Analysis Result", response.data)
         self.assertIn(b"D25A", response.data)
-        self.assertIn(b"Property Changes", response.data)
         stats = self.client.get("/api/stats").get_json()
         recent = self.client.get("/api/recent_analyses").get_json()
         self.assertEqual(stats["total_analyses"], 1)
@@ -232,7 +231,7 @@ class AppTest(unittest.TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Mutation Impact Summary", response.data)
+        self.assertIn(b"Mutation Analysis Result", response.data)
         self.assertIn(b"D25A", response.data)
 
     def test_compare_accepts_loaded_wt_and_mutant_filenames(self):

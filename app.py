@@ -22,6 +22,10 @@ from analysis_core import (
     list_ligands,
     parse_pdb_atoms,
     residue_keys_to_json,
+    ResidueRanker,
+    ConfidenceAssessor,
+    LimitationsBuilder,
+    SafetyGuardrails,
 )
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
@@ -471,6 +475,7 @@ def _build_protein_only_result(pdb_path, filename):
     return {
         "success": True,
         "analysis_mode": "protein_only",
+        "ligand_name": "",
         "result_title": "Protein-only structural overview",
         "result_text": result_text,
         "ai_html": make_html(ai_text),
@@ -484,6 +489,11 @@ def _build_protein_only_result(pdb_path, filename):
         "gained_residues": [],
         "ai_sections": ai_sections,
         "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
+        "schema_version": "2.0",
+        "important_residues": [],
+        "confidence": ConfidenceAssessor({}, [], ligand_detected=False).assess([]),
+        "limitations": LimitationsBuilder().build(mode="protein_only"),
+        "recommended_next_steps": SafetyGuardrails.recommended_next_steps("protein_only", None),
     }
 
 
@@ -556,11 +566,27 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "mode": "ligand",
     })
 
+    # --- Phase 1-3: Ranking + Confidence + Limitations ---
+    ranker = ResidueRanker(contact_residues, interactions)
+    important_residues = ranker.score_all()
+
+    ca = ConfidenceAssessor(contact_residues, interactions, ligand_detected=True)
+    confidence = ca.assess(important_residues)
+
+    lb = LimitationsBuilder()
+    limitations = lb.build(mode="ligand")
+
+    next_steps = SafetyGuardrails.recommended_next_steps("ligand", confidence)
+    # ---
+
     ai_sections = generate_structured_interpretation("ligand", {
         "ligand_name": ligand_name,
         "contact_residues": contact_residues,
         "counts": counts,
         "interactions": interactions,
+        "important_residues": important_residues,
+        "confidence": confidence,
+        "limitations": limitations,
     })
     ai_report_text = "\n\n".join(
         f"{k}\n{v}" for k, v in ai_sections.items()
@@ -573,6 +599,7 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
     return {
         "success": True,
         "analysis_mode": "ligand",
+        "ligand_name": ligand_name,
         "result_text": report_text,
         "ai_html": make_html(ai_text),
         "pdb_url": url_for("uploaded_file", filename=filename),
@@ -585,6 +612,11 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "gained_residues": [],
         "ai_sections": ai_sections,
         "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
+        "schema_version": "2.0",
+        "important_residues": important_residues,
+        "confidence": confidence,
+        "limitations": limitations,
+        "recommended_next_steps": next_steps,
     }
 
 
@@ -720,6 +752,7 @@ def compare():
     result = {
         "success": True,
         "analysis_mode": "comparison",
+        "ligand_name": ligand_name,
         "result_text": wt_report_text,
         "ai_html": make_html(wt_ai_text),
         "pdb_url": url_for("uploaded_file", filename=wt_filename),
@@ -730,6 +763,11 @@ def compare():
         "hotspot_residues": get_hotspot_residues(wt_interactions),
         "ai_sections": ai_sections,
         "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
+        "schema_version": "2.0",
+        "important_residues": [],
+        "confidence": ConfidenceAssessor(wt_contacts, wt_interactions, ligand_detected=True).assess([]),
+        "limitations": LimitationsBuilder().build(mode="comparison"),
+        "recommended_next_steps": SafetyGuardrails.recommended_next_steps("comparison", None),
     }
     if wants_json:
         return jsonify(result)
@@ -820,6 +858,7 @@ def mutation_scan():
     result = {
         "success": True,
         "analysis_mode": "mutation",
+        "ligand_name": ligand_name,
         "result_text": mutation_scan_text,
         "ai_html": make_html(mutation_result["ai_interpretation"]),
         "pdb_url": url_for("uploaded_file", filename=filename),
@@ -829,6 +868,11 @@ def mutation_scan():
         "mutation_scan_text": mutation_scan_text,
         "ai_sections": ai_sections,
         "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
+        "schema_version": "2.0",
+        "important_residues": [],
+        "confidence": None,
+        "limitations": LimitationsBuilder().build(mode="mutation"),
+        "recommended_next_steps": [],
     }
     if wants_json:
         return jsonify(result)
