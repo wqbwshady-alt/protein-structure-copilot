@@ -444,12 +444,14 @@ def map_pdb_to_uniprot(res_id_str, chain_id, dbref_mappings):
 # ---- Enhancement computation ----
 
 
-def compute_conservation_annotation(contact_residues, pdb_path):
+def compute_conservation_annotation(contact_residues, pdb_path, consurf_scores=None):
     """Main entry point: compute conservation + functional annotation for contact residues.
 
     Args:
         contact_residues: {(chain_id, res_name, res_id): atom_dict, ...}
         pdb_path: path to PDB file
+        consurf_scores: optional dict from consurf.map_consurf_to_residues()
+            {residue_key: {score, color, confidence, mapped_position, source}}
 
     Returns:
         dict: {residue_key: {
@@ -465,7 +467,7 @@ def compute_conservation_annotation(contact_residues, pdb_path):
     fallback = {}
     for chain_id, res_name, res_id in residue_keys:
         key = f"{chain_id}:{res_name}{res_id}"
-        fallback[key] = _no_data_fallback(res_name)
+        fallback[key] = _no_data_fallback(res_name, consurf_scores.get(key) if consurf_scores else None)
 
     if not residue_keys:
         return fallback
@@ -497,16 +499,78 @@ def compute_conservation_annotation(contact_residues, pdb_path):
     result = {}
     for chain_id, res_name, res_id in residue_keys:
         key = f"{chain_id}:{res_name}{res_id}"
+        cs = consurf_scores.get(key) if consurf_scores else None
         result[key] = _build_residue_annotation(
-            res_name, key, residue_mapping, accession_features
+            res_name, key, residue_mapping, accession_features, consurf_entry=cs
         )
 
     return result
 
 
-def _no_data_fallback(res_name):
-    """Return a no-data enhancement dict for a single residue."""
+def _no_data_fallback(res_name, consurf_entry=None):
+    """Return a no-data enhancement dict for a single residue.
+
+    If consurf_entry is provided, uses ConSurf-DB score as primary conservation
+    and marks evidence accordingly.
+    """
     blosum = blosum62_proxy_score(res_name)
+
+    if consurf_entry:
+        # ConSurf-DB data available — use as primary conservation
+        consurf_score = consurf_entry.get("score")
+        if consurf_score is not None:
+            consurf_score = round(float(consurf_score), 2)
+            # Normalize ConSurf score (1-9 scale → 0-1)
+            consurf_normalized = round((consurf_score - 1) / 8.0, 4)
+        else:
+            consurf_normalized = blosum
+
+        mapping_conf = consurf_entry.get("confidence", "low")
+        limitations = [
+            "No experimental validation of binding contribution",
+            "No energetic calculation (distance-based geometric classification only)",
+            f"ConSurf-DB mapping confidence: {mapping_conf}"
+            if mapping_conf != "high"
+            else "ConSurf-DB conservation data available",
+            "No UniProt functional annotation available (no DBREF mapping or API data)",
+            "Mapping confidence: low (no PDB-to-UniProt mapping)",
+        ]
+        if mapping_conf == "high":
+            limitations = [
+                "No experimental validation of binding contribution",
+                "No energetic calculation (distance-based geometric classification only)",
+                "No UniProt functional annotation available (no DBREF mapping or API data)",
+                "Mapping confidence: low (no PDB-to-UniProt mapping)",
+            ]
+
+        return {
+            "conservation": {
+                "score": consurf_normalized,
+                "available": True,
+                "source": "consurf_db",
+                "source_detail": (
+                    f"ConSurf-DB evolutionary conservation score (raw={consurf_score}, "
+                    f"normalized={consurf_normalized}). True evolutionary conservation from "
+                    f"MSA-based calculation. Mapping confidence: {mapping_conf}."
+                ),
+            },
+            "functional_annotations": {
+                "available": False,
+                "source": "none",
+                "mapping_confidence": "low",
+                "features": [],
+            },
+            "evidence_tags": {
+                "structural": True,
+                "enrichment": True,
+                "functional": False,
+                "conservation": True,
+                "proxy_only": False,
+            },
+            "limitations": limitations,
+        }
+
+    # No ConSurf data — BLOSUM62 proxy only
     return {
         "conservation": {
             "score": blosum,
@@ -541,110 +605,118 @@ def _no_data_fallback(res_name):
     }
 
 
-def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_features):
-    """Build annotation for one residue, combining UniProt + BLOSUM62 fallback."""
+def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_features, consurf_entry=None):
+    """Build annotation for one residue, combining ConSurf/UniProt + BLOSUM62 fallback.
+
+    Priority:
+    1. ConSurf-DB → true evolutionary conservation
+    2. BLOSUM62 → substitution tolerance proxy (fallback)
+    """
     blosum = blosum62_proxy_score(res_name)
     limitations = [
         "No experimental validation of binding contribution",
         "No energetic calculation (distance-based geometric classification only)",
     ]
 
-    if residue_key not in residue_mapping:
-        # No DBREF mapping → BLOSUM62 only, no functional annotations
-        limitations.append(
-            "Conservation evidence unavailable — using BLOSUM62 substitution proxy"
-        )
-        limitations.append(
-            "No UniProt functional annotation available (no DBREF mapping for this residue)"
-        )
-        return {
-            "conservation": {
-                "score": blosum,
-                "available": False,
-                "source": "blosum62_proxy",
-                "source_detail": (
-                    "BLOSUM62 self-substitution score — substitution tolerance proxy. "
-                    "No evolutionary conservation data available."
-                ),
-            },
-            "functional_annotations": {
-                "available": False,
-                "source": "none",
-                "mapping_confidence": "low",
-                "features": [],
-            },
-            "evidence_tags": {
-                "structural": True,
-                "enrichment": True,
-                "functional": False,
-                "conservation": False,
-                "proxy_only": True,
-            },
-            "limitations": limitations,
+    # --- Conservation: ConSurf-DB first, BLOSUM62 fallback ---
+    if consurf_entry:
+        consurf_score = consurf_entry.get("score")
+        if consurf_score is not None:
+            consurf_score = round(float(consurf_score), 2)
+            consurf_normalized = round((consurf_score - 1) / 8.0, 4)
+        else:
+            consurf_normalized = blosum
+
+        consurf_mapping_conf = consurf_entry.get("confidence", "low")
+        conservation_data = {
+            "score": consurf_normalized,
+            "available": True,
+            "source": "consurf_db",
+            "source_detail": (
+                f"ConSurf-DB evolutionary conservation score (raw={consurf_score}, "
+                f"normalized={consurf_normalized}). True evolutionary conservation from "
+                f"MSA-based calculation. Mapping confidence: {consurf_mapping_conf}."
+            ),
         }
-
-    accession, uniprot_pos, mapping_conf = residue_mapping[residue_key]
-
-    # Conservation: BLOSUM62 proxy (no real conservation from UniProt)
-    # UniProt features ≠ conservation score
-    conservation_source_detail = (
-        "BLOSUM62 self-substitution score — substitution tolerance proxy. "
-        "UniProt functional annotation is separately available but does not "
-        "provide an evolutionary conservation score."
-    )
-    limitations.append(
-        "Conservation evidence unavailable — using BLOSUM62 substitution proxy"
-    )
-
-    if mapping_conf == "low":
+        cons_tags = {
+            "conservation": True,
+            "proxy_only": False,
+        }
+        if consurf_mapping_conf != "high":
+            limitations.append(
+                f"ConSurf-DB position mapping confidence is {consurf_mapping_conf} "
+                f"for residue {residue_key}"
+            )
+    else:
+        conservation_data = {
+            "score": blosum,
+            "available": False,
+            "source": "blosum62_proxy",
+            "source_detail": (
+                "BLOSUM62 self-substitution score — substitution tolerance proxy. "
+                "No evolutionary conservation data available."
+            ),
+        }
+        cons_tags = {
+            "conservation": False,
+            "proxy_only": True,
+        }
         limitations.append(
-            f"PDB-to-UniProt mapping confidence is low for residue {residue_key}"
-        )
-    elif mapping_conf == "medium":
-        limitations.append(
-            f"PDB-to-UniProt mapping confidence is medium for residue {residue_key} "
-            "(insertion code involved)"
+            "No true evolutionary conservation data available — using BLOSUM62 substitution proxy"
         )
 
-    # Functional annotations from UniProt
+    # --- Functional annotations from UniProt ---
     features = []
     feat_available = False
     feat_source = "none"
+    mapping_conf = "low"
 
-    if accession in accession_features:
-        pos_features = accession_features[accession].get(uniprot_pos, [])
-        if pos_features:
-            feat_available = True
-            feat_source = "uniprot"
-            features = list(pos_features)
+    if residue_key not in residue_mapping:
+        limitations.append(
+            "No UniProt functional annotation available (no DBREF mapping for this residue)"
+        )
+    else:
+        accession, uniprot_pos, mapping_conf = residue_mapping[residue_key]
+
+        if mapping_conf == "low":
+            limitations.append(
+                f"PDB-to-UniProt mapping confidence is low for residue {residue_key}"
+            )
+        elif mapping_conf == "medium":
+            limitations.append(
+                f"PDB-to-UniProt mapping confidence is medium for residue {residue_key} "
+                "(insertion code involved)"
+            )
+
+        if accession in accession_features:
+            pos_features = accession_features[accession].get(uniprot_pos, [])
+            if pos_features:
+                feat_available = True
+                feat_source = "uniprot"
+                features = list(pos_features)
+            else:
+                limitations.append(
+                    f"No functional annotation at UniProt position {uniprot_pos} "
+                    f"(accession {accession})"
+                )
         else:
             limitations.append(
-                f"No functional annotation at UniProt position {uniprot_pos} "
-                f"(accession {accession})"
+                f"UniProt API data unavailable for accession {accession}"
             )
-    else:
-        limitations.append(
-            f"UniProt API data unavailable for accession {accession}"
-        )
 
-    if not feat_available:
+    if not feat_available and residue_key in residue_mapping:
         limitations.append("No UniProt functional annotation for this residue position")
 
     evidence_tags = {
         "structural": True,
         "enrichment": True,
         "functional": feat_available,
-        "conservation": False,
-        "proxy_only": True,
+        "conservation": cons_tags["conservation"],
+        "proxy_only": cons_tags["proxy_only"],
     }
 
     return {
-        "conservation": {
-            "score": blosum,
-            "available": False,
-            "source": "blosum62_proxy",
-            "source_detail": conservation_source_detail,
-        },
+        "conservation": conservation_data,
         "functional_annotations": {
             "available": feat_available,
             "source": feat_source,

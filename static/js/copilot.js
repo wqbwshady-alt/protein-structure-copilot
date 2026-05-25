@@ -318,8 +318,18 @@
           var consTitle = cons.source_detail || '';
           var consScore = cons.score;
           var consClass = consAvailable ? 'cons-real' : 'cons-proxy';
+          var consLabel = '';
+          if (consSource === 'consurf_db') {
+            consLabel = '[C] ConSurf';
+            consClass = 'cons-real cons-consurf';
+          } else if (consSource === 'blosum62_proxy') {
+            consLabel = '[P] BLOSUM';
+            consClass = 'cons-proxy';
+          } else {
+            consLabel = '(' + consSource + ')';
+          }
           consHTML = '<span class="rk-cons ' + consClass + '" title="' + consTitle + '">' +
-            consScore.toFixed(2) + '<span class="cons-src">' + (consSource === 'blosum62_proxy' ? '(BLOSUM)' : '(UniProt)') + '</span></span>';
+            consScore.toFixed(2) + '<span class="cons-src">' + consLabel + '</span></span>';
         }
 
         // UniProt functional annotations
@@ -353,8 +363,8 @@
         if (ev.structural) evTags.push('<span class="ev-tag structural">[S] Structural</span>');
         if (ev.enrichment) evTags.push('<span class="ev-tag enrichment">[E] Enrichment</span>');
         if (ev.functional) evTags.push('<span class="ev-tag functional">[F] UniProt</span>');
-        if (ev.conservation) evTags.push('<span class="ev-tag conservation">[C] Conservation</span>');
-        if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] BLOSUM62 proxy</span>');
+        if (ev.conservation) evTags.push('<span class="ev-tag conservation">[C] True conservation</span>');
+        if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] Substitution proxy</span>');
         if (evTags.length) whyParts.push('<span class="ev-tags">' + evTags.join(' ') + '</span>');
         if (lims.length > 0) {
           whyParts.push('<span class="ev-lims">Limitations: ' + lims.slice(0, 2).join('; ') + '</span>');

@@ -727,11 +727,14 @@ def build_structured_prompt(mode, data):
 
             parts = [f"{residue_key}:"]
 
-            if cons.get("available"):
+            if cons.get("available") and cons.get("source") == "consurf_db":
+                parts.append(f"ConSurf_conservation_score={cons.get('score', '?')} (TRUE evolutionary conservation, MSA-based)")
+                parts.append(f"conservation_source={cons.get('source', '?')}")
+            elif cons.get("available"):
                 parts.append(f"conservation_score={cons.get('score', '?')}")
                 parts.append(f"conservation_source={cons.get('source', '?')}")
             else:
-                parts.append(f"blosum62_proxy={cons.get('score', '?')} (no conservation data)")
+                parts.append(f"blosum62_proxy={cons.get('score', '?')} (substitution tolerance proxy ONLY — NOT evolutionary conservation)")
                 parts.append(f"conservation_source={cons.get('source', '?')}")
 
             if func.get("available") and func.get("features"):

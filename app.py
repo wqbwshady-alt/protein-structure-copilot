@@ -31,6 +31,7 @@ from analysis_core import (
     SafetyGuardrails,
 )
 from conservation import compute_conservation_annotation
+from consurf import extract_pdb_id, map_consurf_to_residues, query_consurf_db
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from ai_client import generate_structured_interpretation
@@ -585,8 +586,17 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         pass
 
     try:
+        # Query ConSurf-DB for real evolutionary conservation scores
+        pdb_id = extract_pdb_id(pdb_path, filename)
+        consurf_data = None
+        if pdb_id:
+            consurf_data = query_consurf_db(pdb_id)
+        consurf_scores = {}
+        if consurf_data:
+            consurf_scores = map_consurf_to_residues(consurf_data, contact_residues)
+
         conservation_annotations = compute_conservation_annotation(
-            contact_residues, pdb_path
+            contact_residues, pdb_path, consurf_scores=consurf_scores if consurf_scores else None
         )
     except Exception:
         pass
