@@ -144,23 +144,23 @@ def fetch_uniprot_features(accession):
     return features
 
 
-# UniProt feature types we care about
+# UniProt feature types we care about (match the exact strings returned by the UniProt REST API)
 _FEATURE_TYPES_OF_INTEREST = {
-    "ACT_SITE",
-    "BINDING",
-    "DOMAIN",
-    "MUTAGEN",
-    "DISULFID",
-    "VARIANT",
-    "METAL",
-    "NP_BIND",
-    "ZN_FING",
-    "MOTIF",
-    "SITE",
-    "MOD_RES",
-    "LIPID",
-    "CARBOHYD",
-    "CROSSLNK",
+    "Active site",
+    "Binding site",
+    "Domain",
+    "Mutagenesis",
+    "Disulfide bond",
+    "Natural variant",
+    "Metal binding",
+    "NP bind",
+    "Zinc finger",
+    "Motif",
+    "Site",
+    "Modified residue",
+    "Lipidation",
+    "Glycosylation",
+    "Cross-link",
 }
 
 
