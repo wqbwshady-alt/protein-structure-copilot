@@ -517,11 +517,11 @@ def _no_data_fallback(res_name, consurf_entry=None):
 
     if consurf_entry:
         # ConSurf-DB data available — use as primary conservation
-        consurf_score = consurf_entry.get("score")
-        if consurf_score is not None:
-            consurf_score = round(float(consurf_score), 2)
-            # Normalize ConSurf score (1-9 scale → 0-1)
-            consurf_normalized = round((consurf_score - 1) / 8.0, 4)
+        consurf_color = consurf_entry.get("color")
+        consurf_raw = consurf_entry.get("score")
+        if consurf_color is not None:
+            # Normalize ConSurf color (1-9 scale → 0-1)
+            consurf_normalized = round((int(consurf_color) - 1) / 8.0, 4)
         else:
             consurf_normalized = blosum
 
@@ -549,9 +549,10 @@ def _no_data_fallback(res_name, consurf_entry=None):
                 "available": True,
                 "source": "consurf_db",
                 "source_detail": (
-                    f"ConSurf-DB evolutionary conservation score (raw={consurf_score}, "
-                    f"normalized={consurf_normalized}). True evolutionary conservation from "
-                    f"MSA-based calculation. Mapping confidence: {mapping_conf}."
+                    f"ConSurf-DB evolutionary conservation score (color={consurf_color}/9, "
+                    f"raw={consurf_raw}, normalized={consurf_normalized}). "
+                    "True evolutionary conservation from MSA-based calculation. "
+                    f"Mapping confidence: {mapping_conf}."
                 ),
             },
             "functional_annotations": {
@@ -620,10 +621,10 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
 
     # --- Conservation: ConSurf-DB first, BLOSUM62 fallback ---
     if consurf_entry:
-        consurf_score = consurf_entry.get("score")
-        if consurf_score is not None:
-            consurf_score = round(float(consurf_score), 2)
-            consurf_normalized = round((consurf_score - 1) / 8.0, 4)
+        consurf_color = consurf_entry.get("color")
+        consurf_raw = consurf_entry.get("score")
+        if consurf_color is not None:
+            consurf_normalized = round((int(consurf_color) - 1) / 8.0, 4)
         else:
             consurf_normalized = blosum
 
@@ -633,9 +634,10 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
             "available": True,
             "source": "consurf_db",
             "source_detail": (
-                f"ConSurf-DB evolutionary conservation score (raw={consurf_score}, "
-                f"normalized={consurf_normalized}). True evolutionary conservation from "
-                f"MSA-based calculation. Mapping confidence: {consurf_mapping_conf}."
+                f"ConSurf-DB evolutionary conservation score (color={consurf_color}/9, "
+                f"raw={consurf_raw}, normalized={consurf_normalized}). "
+                "True evolutionary conservation from MSA-based calculation. "
+                f"Mapping confidence: {consurf_mapping_conf}."
             ),
         }
         cons_tags = {

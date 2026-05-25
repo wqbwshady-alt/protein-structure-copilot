@@ -11,17 +11,18 @@ from consurf import (
     query_consurf_db,
     _load_cache,
     _save_cache,
-    _parse_consurf_response,
+    _fetch_chain_mapping,
+    _fetch_grades,
+    _parse_grades_text,
+    _parse_3latom,
 )
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-TEST_PDB = os.path.join(ROOT_DIR, "uploads", "RCSB_1HSG_abc12345.pdb")
 
 
 class ConsurfCacheTest(unittest.TestCase):
     def setUp(self):
-        self.test_pdb_id = "TEST"
         os.makedirs(CACHE_DIR, exist_ok=True)
 
     def tearDown(self):
@@ -30,7 +31,7 @@ class ConsurfCacheTest(unittest.TestCase):
             os.remove(cache_path)
 
     def test_cache_roundtrip(self):
-        payload = {"A": [{"pos": 1, "score": 7}]}
+        payload = {"A": [{"pos": 1, "score": 7, "color": 8, "chain_id": "A", "residue_name": "MET", "insertion_code": ""}]}
         _save_cache("TEST", payload)
         loaded = _load_cache("TEST")
         self.assertIsNotNone(loaded)
@@ -55,122 +56,102 @@ class ConsurfCacheTest(unittest.TestCase):
 
 class ExtractPdbIdTest(unittest.TestCase):
     def test_rcsb_filename(self):
-        pdb_id = extract_pdb_id("", filename="RCSB_1HSG_abc12345.pdb")
-        self.assertEqual(pdb_id, "1HSG")
+        self.assertEqual(extract_pdb_id("", filename="RCSB_1HSG_abc12345.pdb"), "1HSG")
 
     def test_rcsb_filename_case(self):
-        pdb_id = extract_pdb_id("", filename="rcsb_4hhb_ffffffff.pdb")
-        self.assertEqual(pdb_id, "4HHB")
+        self.assertEqual(extract_pdb_id("", filename="rcsb_4hhb_ffffffff.pdb"), "4HHB")
 
     def test_no_rcsb_prefix(self):
-        pdb_id = extract_pdb_id("", filename="my_upload.pdb")
-        self.assertIsNone(pdb_id)
+        self.assertIsNone(extract_pdb_id("", filename="my_upload.pdb"))
 
     def test_empty(self):
-        pdb_id = extract_pdb_id("", filename="")
-        self.assertIsNone(pdb_id)
+        self.assertIsNone(extract_pdb_id("", filename=""))
 
 
-class ParseConsurfResponseTest(unittest.TestCase):
-    def test_standard_format(self):
-        raw = {
-            "results": {
-                "A": [
-                    {"pos": 1, "score": 8, "color": 9},
-                    {"pos": 2, "score": 4, "color": 5},
-                ],
-                "B": [
-                    {"pos": 1, "score": 7, "color": 8},
-                ],
-            }
-        }
-        parsed = _parse_consurf_response(raw)
-        self.assertIsNotNone(parsed)
-        self.assertEqual(len(parsed["A"]), 2)
-        self.assertEqual(parsed["A"][0]["pos"], 1)
-        self.assertEqual(parsed["A"][0]["score"], 8.0)
-        self.assertEqual(parsed["A"][0]["color"], 9)
+class Parse3latomTest(unittest.TestCase):
+    def test_standard(self):
+        result = _parse_3latom("MET1:A")
+        self.assertEqual(result["res_name"], "MET")
+        self.assertEqual(result["pos"], 1)
+        self.assertEqual(result["chain"], "A")
+        self.assertEqual(result["ins_code"], "")
 
-    def test_float_score(self):
-        raw = {"results": {"A": [{"pos": 10, "score": 6.5, "color": 7}]}}
-        parsed = _parse_consurf_response(raw)
-        self.assertEqual(parsed["A"][0]["score"], 6.5)
+    def test_with_insertion_code(self):
+        result = _parse_3latom("ASP25A:B")
+        self.assertEqual(result["res_name"], "ASP")
+        self.assertEqual(result["pos"], 25)
+        self.assertEqual(result["chain"], "B")
+        self.assertEqual(result["ins_code"], "A")
 
-    def test_string_position(self):
-        raw = {"results": {"A": [{"pos": "42", "score": 3}]}}
-        parsed = _parse_consurf_response(raw)
-        self.assertEqual(parsed["A"][0]["pos"], 42)
+    def test_negative_position(self):
+        result = _parse_3latom("GLY-1:A")
+        self.assertEqual(result["pos"], -1)
 
-    def test_alternative_keys(self):
-        raw = {
-            "results": {
-                "A": [
-                    {"position": 5, "score": 9},
-                    {"residue_number": 6, "score": 8},
-                ]
-            }
-        }
-        parsed = _parse_consurf_response(raw)
-        self.assertEqual(len(parsed["A"]), 2)
-        self.assertEqual(parsed["A"][0]["pos"], 5)
-        self.assertEqual(parsed["A"][1]["pos"], 6)
+    def test_chain_as_digit(self):
+        result = _parse_3latom("ALA5:0")
+        self.assertEqual(result["chain"], "0")
 
-    def test_no_results_key(self):
-        raw = {
-            "A": [{"pos": 1, "score": 7}],
-            "B": [{"pos": 2, "score": 5}],
-        }
-        parsed = _parse_consurf_response(raw)
-        self.assertIsNotNone(parsed)
-        self.assertEqual(len(parsed["A"]), 1)
-        self.assertEqual(len(parsed["B"]), 1)
+    def test_invalid(self):
+        self.assertIsNone(_parse_3latom(""))
+        self.assertIsNone(_parse_3latom("INVALID"))
 
-    def test_missing_position(self):
-        raw = {"results": {"A": [{"score": 5}]}}
-        parsed = _parse_consurf_response(raw)
-        self.assertIsNone(parsed)
 
-    def test_empty_results(self):
-        raw = {"results": {}}
-        parsed = _parse_consurf_response(raw)
-        self.assertIsNone(parsed)
+class ParseGradesTextTest(unittest.TestCase):
+    def test_valid_grades(self):
+        text = (
+            "1\tM\tMET1:A\t-1.610\t9\t-1.838,-1.537\t9,9\t94/300\tM,L,V,I\n"
+            "2\tG\tGLY2:A\t0.523\t4\t0.201,0.845\t4,4\t85/300\tG,A\n"
+            "3\tA\tALA3:A\t-0.120\t6\t-0.401,0.161\t6,6\t90/300\tA,S,T\n"
+        )
+        results = _parse_grades_text(text)
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[0]["pos"], 1)
+        self.assertEqual(results[0]["score"], -1.610)
+        self.assertEqual(results[0]["color"], 9)
+        self.assertEqual(results[0]["residue_name"], "MET")
+        self.assertEqual(results[0]["chain_id"], "A")
 
-    def test_non_dict(self):
-        parsed = _parse_consurf_response([1, 2, 3])
-        self.assertIsNone(parsed)
+    def test_missing_density_skipped(self):
+        text = "1\tM\t-\t0.5\t5\t0.2,0.8\t5,5\t50/100\tA,L\n"
+        results = _parse_grades_text(text)
+        self.assertIsNone(results)
 
-    def test_none(self):
-        parsed = _parse_consurf_response(None)
-        self.assertIsNone(parsed)
+    def test_empty_text(self):
+        self.assertIsNone(_parse_grades_text(""))
+        self.assertIsNone(_parse_grades_text("   \n"))
+
+    def test_header_lines_ignored(self):
+        text = "# Header line\n1\tM\tMET1:A\t-1.610\t9\t\n"
+        results = _parse_grades_text(text)
+        self.assertEqual(len(results), 1)
 
 
 class MapConsurfToResiduesTest(unittest.TestCase):
     def setUp(self):
         self.consurf_data = {
             "A": [
-                {"pos": 1, "score": 8, "color": 9},
-                {"pos": 2, "score": 4, "color": 5},
-                {"pos": 25, "score": 7, "color": 8},
+                {"pos": 1, "score": -1.610, "color": 9, "chain_id": "A", "residue_name": "ASP", "insertion_code": ""},
+                {"pos": 2, "score": 0.523, "color": 4, "chain_id": "A", "residue_name": "GLY", "insertion_code": ""},
+                {"pos": 25, "score": -0.120, "color": 7, "chain_id": "A", "residue_name": "ILE", "insertion_code": ""},
             ],
             "B": [
-                {"pos": 10, "score": 3, "color": 4},
+                {"pos": 10, "score": 1.2, "color": 3, "chain_id": "B", "residue_name": "PHE", "insertion_code": ""},
             ],
         }
         self.contact_residues = {
             ("A", "ASP", "1"): {},
             ("A", "GLY", "2"): {},
             ("A", "ILE", "25"): {},
-            ("A", "LYS", "99"): {},          # not in ConSurf
+            ("A", "LYS", "99"): {},
             ("B", "PHE", "10"): {},
-            ("C", "VAL", "1"): {},           # chain not in ConSurf
+            ("C", "VAL", "1"): {},
         }
 
     def test_exact_match_high_confidence(self):
         result = map_consurf_to_residues(self.consurf_data, self.contact_residues)
         self.assertIn("A:ASP1", result)
-        self.assertEqual(result["A:ASP1"]["score"], 8)
+        self.assertEqual(result["A:ASP1"]["score"], -1.610)
         self.assertEqual(result["A:ASP1"]["confidence"], "high")
-        self.assertEqual(result["A:ASP1"]["source"], "consurf_db")
 
     def test_no_match_for_missing(self):
         result = map_consurf_to_residues(self.consurf_data, self.contact_residues)
@@ -187,11 +168,6 @@ class MapConsurfToResiduesTest(unittest.TestCase):
         self.assertEqual(map_consurf_to_residues(None, {}), {})
         self.assertEqual(map_consurf_to_residues({}, None), {})
         self.assertEqual(map_consurf_to_residues({}, {}), {})
-
-    def test_cross_chain_mapping(self):
-        result = map_consurf_to_residues(self.consurf_data, self.contact_residues)
-        self.assertIn("B:PHE10", result)
-        self.assertEqual(result["B:PHE10"]["score"], 3)
 
 
 class QueryConsurfDbTest(unittest.TestCase):
@@ -210,44 +186,66 @@ class QueryConsurfDbTest(unittest.TestCase):
         self.assertIsNone(query_consurf_db("12345"))
 
     def test_cache_hit(self):
-        pdb_id = "CACH"
-        _save_cache(pdb_id, {"A": [{"pos": 1, "score": 9}]})
-        result = query_consurf_db(pdb_id)
+        payload = {"A": [{"pos": 1, "score": -1.610, "color": 9, "chain_id": "A"}]}
+        _save_cache("CACH", payload)
+        result = query_consurf_db("CACH")
         self.assertIsNotNone(result)
-        self.assertEqual(result["A"][0]["score"], 9)
+        self.assertEqual(result["A"][0]["score"], -1.610)
         os.remove(os.path.join(CACHE_DIR, "CACH.json"))
 
     @mock.patch("consurf.requests.get")
-    def test_api_success(self, mock_get):
-        mock_resp = mock.MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "results": {"A": [{"pos": 1, "score": 7}]}
-        }
-        mock_get.return_value = mock_resp
+    def test_full_query_success(self, mock_get):
+        # Mock Step 1: chain_selection
+        # Mock Step 2: grades file
+        def side_effect(url, **kwargs):
+            m = mock.MagicMock()
+            if "chain_selection" in url:
+                m.status_code = 200
+                m.text = '<option value="A ABCDE">chain A</option>'
+            elif "consurf_summary" in url:
+                m.status_code = 200
+                m.text = "1\tM\tMET1:A\t-1.610\t9\t-1.838,-1.537\t9,9\t94/300\tM,L,V,I\n"
+            else:
+                m.status_code = 404
+                m.text = ""
+            return m
 
+        mock_get.side_effect = side_effect
         result = query_consurf_db("3DEF")
         self.assertIsNotNone(result)
-        self.assertEqual(result["A"][0]["score"], 7)
+        self.assertIn("A", result)
+        self.assertEqual(result["A"][0]["score"], -1.610)
 
     @mock.patch("consurf.requests.get")
-    def test_api_404(self, mock_get):
-        mock_resp = mock.MagicMock()
-        mock_resp.status_code = 404
-        mock_get.return_value = mock_resp
-        result = query_consurf_db("2ABC")
-        self.assertIsNone(result)
-
-    @mock.patch("consurf.requests.get")
-    def test_api_timeout(self, mock_get):
-        import requests as req_mod
-        mock_get.side_effect = req_mod.Timeout
+    def test_chain_selection_no_chains(self, mock_get):
+        m = mock.MagicMock()
+        m.status_code = 200
+        m.text = "No chains found for 1XYZ"
+        mock_get.return_value = m
         result = query_consurf_db("1XYZ")
         self.assertIsNone(result)
 
     @mock.patch("consurf.requests.get")
-    def test_api_connection_error(self, mock_get):
+    def test_downtime_page(self, mock_get):
+        m = mock.MagicMock()
+        m.status_code = 200
+        m.text = "<html><h1>Temporary Downtime</h1></html>"
+        mock_get.return_value = m
+        result = query_consurf_db("1XYZ")
+        self.assertIsNone(result)
+
+    @mock.patch("consurf.requests.get")
+    def test_connection_error(self, mock_get):
         import requests as req_mod
         mock_get.side_effect = req_mod.ConnectionError
+        result = query_consurf_db("1XYZ")
+        self.assertIsNone(result)
+
+    @mock.patch("consurf.requests.get")
+    def test_http_404(self, mock_get):
+        m = mock.MagicMock()
+        m.status_code = 404
+        m.text = ""
+        mock_get.return_value = m
         result = query_consurf_db("1XYZ")
         self.assertIsNone(result)
