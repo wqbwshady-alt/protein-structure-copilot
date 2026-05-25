@@ -497,6 +497,218 @@ class ResidueRanker:
         return " ".join(parts)
 
 
+# ---- Statistical Enrichment Analysis ----
+
+
+def compute_full_protein_composition(atoms):
+    """Compute residue-type composition of the entire protein (ATOM records only).
+
+    Args:
+        atoms: list of atom dicts from parse_pdb_atoms()
+
+    Returns:
+        dict: {hydrophobic: N, polar: N, positive: N, negative: N, other: N, total: N,
+               residues: {(chain_id, res_name, res_id), ...}}
+    """
+    protein_atoms = [a for a in atoms if a["atom_type"] == "ATOM"]
+    unique_residues = set()
+    for a in protein_atoms:
+        unique_residues.add((a["chain_id"], a["res_name"], a["res_id"]))
+
+    composition = {"hydrophobic": 0, "polar": 0, "positive": 0,
+                   "negative": 0, "other": 0, "total": len(unique_residues),
+                   "residues": unique_residues}
+
+    for _, res_name, _ in unique_residues:
+        cat = classify_residue(res_name)
+        composition[cat] += 1
+
+    return composition
+
+
+def compute_pocket_enrichment(pocket_counts, full_composition):
+    """Fisher exact test for enrichment/depletion of residue types in pocket vs whole protein.
+
+    Compares pocket contact-residue composition against the full protein background.
+
+    Args:
+        pocket_counts: dict from analyze_ligand_pocket() — {hydrophobic, polar, positive, negative}
+        full_composition: dict from compute_full_protein_composition()
+
+    Returns:
+        dict with per-type enrichment metrics + significant_types + baseline info
+    """
+    try:
+        from scipy.stats import fisher_exact
+    except ImportError:
+        # scipy unavailable: return structure without p-values
+        return _enrichment_fallback(pocket_counts, full_composition)
+
+    total_pocket = sum(pocket_counts.get(k, 0) for k in
+                       ["hydrophobic", "polar", "positive", "negative"])
+    total_protein = full_composition["total"]
+
+    if total_pocket == 0 or total_protein == 0:
+        return _enrichment_fallback(pocket_counts, full_composition)
+
+    result = {}
+    significant_types = []
+
+    for cat in ["hydrophobic", "polar", "positive", "negative"]:
+        pocket_n = pocket_counts.get(cat, 0)
+        protein_n = full_composition.get(cat, 0)
+        pocket_frac = pocket_n / total_pocket if total_pocket > 0 else 0.0
+        protein_frac = protein_n / total_protein if total_protein > 0 else 0.0
+
+        fold = pocket_frac / protein_frac if protein_frac > 0 else float("inf") if pocket_frac > 0 else 0.0
+        fold = round(fold, 2)
+
+        # Fisher exact contingency table:
+        #           Pocket   Rest_of_protein
+        # Cat       a        b
+        # Not cat   c        d
+        a = pocket_n
+        b = protein_n - pocket_n
+        c = total_pocket - pocket_n
+        d = (total_protein - total_pocket) - (protein_n - pocket_n)
+
+        if b < 0 or c < 0 or d < 0:
+            p_value = 1.0
+        else:
+            try:
+                _, p_value = fisher_exact([[a, b], [c, d]], alternative="two-sided")
+                p_value = round(float(p_value), 4)
+            except (ValueError, TypeError):
+                p_value = 1.0
+
+        result[cat] = {
+            "pocket_count": pocket_n,
+            "protein_count": protein_n,
+            "pocket_fraction": round(pocket_frac, 4),
+            "protein_fraction": round(protein_frac, 4),
+            "fold_enrichment": fold,
+            "p_value": p_value,
+            "significant": p_value < 0.05,
+        }
+
+        if p_value < 0.05 and fold > 1.0:
+            significant_types.append(f"{cat} ({fold}x enriched)")
+        elif p_value < 0.05 and fold < 1.0:
+            significant_types.append(f"{cat} ({fold}x depleted)")
+
+    result["significant_types"] = significant_types
+    result["baseline"] = "whole_protein"
+    result["test"] = "fisher_exact"
+
+    return result
+
+
+def _enrichment_fallback(pocket_counts, full_composition):
+    """Fallback enrichment without p-values (when scipy is unavailable)."""
+    total_pocket = sum(pocket_counts.get(k, 0) for k in
+                       ["hydrophobic", "polar", "positive", "negative"])
+    total_protein = full_composition.get("total", 1)
+
+    result = {}
+    for cat in ["hydrophobic", "polar", "positive", "negative"]:
+        pocket_n = pocket_counts.get(cat, 0)
+        protein_n = full_composition.get(cat, 0)
+        pocket_frac = pocket_n / total_pocket if total_pocket > 0 else 0.0
+        protein_frac = protein_n / total_protein if total_protein > 0 else 0.0
+        fold = pocket_frac / protein_frac if protein_frac > 0 else 0.0
+
+        result[cat] = {
+            "pocket_count": pocket_n,
+            "protein_count": protein_n,
+            "pocket_fraction": round(pocket_frac, 4),
+            "protein_fraction": round(protein_frac, 4),
+            "fold_enrichment": round(fold, 2),
+            "p_value": None,
+            "significant": None,
+        }
+
+    result["significant_types"] = []
+    result["baseline"] = "whole_protein"
+    result["test"] = "fisher_exact (unavailable — scipy not installed, p-values not computed)"
+    return result
+
+
+def merge_enhancement(ranked_residues, enrichment, conservation_annotations):
+    """Attach enrichment + conservation annotation to each ranked residue.
+
+    Does NOT modify ranking order or scores. Only adds new fields.
+
+    Args:
+        ranked_residues: list of dicts from ResidueRanker.score_all()
+        enrichment: dict from compute_pocket_enrichment()
+        conservation_annotations: dict from compute_conservation_annotation()
+
+    Returns:
+        list of dicts — same residues, with added 'enrichment' and 'conservation' fields
+    """
+    enhanced = []
+    for r in ranked_residues:
+        key = r.get("residue_key", "")
+        entry = dict(r)
+
+        # Per-residue enrichment: add the category-level enrichment for this residue type
+        res_name = r.get("res_name", "")
+        cat = classify_residue(res_name)
+        entry["enrichment"] = {
+            "category": cat,
+            "category_enrichment": enrichment.get(cat) if enrichment else None,
+            "overall_enrichment": {
+                "significant_types": enrichment.get("significant_types", []) if enrichment else [],
+                "baseline": enrichment.get("baseline", "") if enrichment else "",
+                "test": enrichment.get("test", "") if enrichment else "",
+            },
+        }
+
+        # Conservation + functional annotation
+        entry["conservation"] = {}
+        entry["functional_annotations"] = {}
+        entry["evidence_tags"] = {}
+        entry["residue_limitations"] = []
+
+        if conservation_annotations and key in conservation_annotations:
+            ca = conservation_annotations[key]
+            entry["conservation"] = ca.get("conservation", {})
+            entry["functional_annotations"] = ca.get("functional_annotations", {})
+            entry["evidence_tags"] = ca.get("evidence_tags", {})
+            entry["residue_limitations"] = ca.get("limitations", [])
+        else:
+            # No-data fallback for this residue
+            blosum = 0.5
+            entry["conservation"] = {
+                "score": 0.5,
+                "available": False,
+                "source": "blosum62_proxy",
+                "source_detail": "BLOSUM62 self-substitution proxy. No conservation data available.",
+            }
+            entry["functional_annotations"] = {
+                "available": False,
+                "source": "none",
+                "mapping_confidence": "low",
+                "features": [],
+            }
+            entry["evidence_tags"] = {
+                "structural": True,
+                "enrichment": True,
+                "functional": False,
+                "conservation": False,
+                "proxy_only": True,
+            }
+            entry["residue_limitations"] = [
+                "No conservation evidence available",
+                "No functional annotation available",
+                "No experimental validation of binding contribution",
+            ]
+
+        enhanced.append(entry)
+
+    return enhanced
+
+
 # ============================================================
 #  Phase 2: ConfidenceAssessor + LimitationsBuilder
 # ============================================================

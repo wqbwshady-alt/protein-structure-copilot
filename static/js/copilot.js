@@ -270,25 +270,97 @@
     // --- v2: Important Residues Ranking Table ---
     if (data.important_residues && data.important_residues.length > 0) {
       h += '<h2 style="margin-top:16px;">Important Residues</h2>';
+
+      // Enrichment summary bar (pocket-level, shown once)
+      var enrich = (data.important_residues[0] || {}).enrichment || {};
+      var overallEnrich = enrich.overall_enrichment || {};
+      if (overallEnrich.significant_types && overallEnrich.significant_types.length > 0) {
+        h += '<div class="enrichment-bar">' +
+          '<span class="enrichment-label">Pocket Enrichment (vs whole protein):</span> ' +
+          overallEnrich.significant_types.map(function (s) {
+            return '<span class="enrichment-tag">' + s + '</span>';
+          }).join(' ') +
+          '<span class="enrichment-test"> (Fisher exact, p &lt; 0.05)</span>' +
+        '</div>';
+      }
+
       h += '<div class="ranking-table">';
       h += '<div class="ranking-header">' +
-        '<span>Rank</span><span>Residue</span><span>Score</span><span>Min Dist</span><span>Interactions</span><span>Confidence</span>' +
+        '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
       '</div>';
       data.important_residues.slice(0, 10).forEach(function (r) {
         var confClass = 'conf-' + (r.residue_confidence || 'low');
         var types = [];
         (r.interaction_evidence || []).forEach(function (e) { if (types.indexOf(e.type) === -1) types.push(e.type); });
+
+        // Enrichment
+        var catEnrich = (r.enrichment || {}).category_enrichment || null;
+        var enrichHTML = '';
+        if (catEnrich) {
+          var fold = catEnrich.fold_enrichment;
+          var sig = catEnrich.significant;
+          var pv = catEnrich.p_value;
+          if (fold !== undefined && fold > 0) {
+            var enrichClass = sig ? 'enrich-sig' : 'enrich-ns';
+            var enrichTitle = 'Fold: ' + fold.toFixed(1) + 'x, p=' + (pv !== null ? pv : 'N/A') +
+              ', ' + (r.enrichment.category || '') + ' category';
+            enrichHTML = '<span class="rk-enrich ' + enrichClass + '" title="' + enrichTitle + '">' +
+              (fold >= 1 ? '+' : '') + fold.toFixed(1) + 'x</span>';
+          }
+        }
+
+        // Conservation
+        var cons = r.conservation || {};
+        var consHTML = '';
+        if (cons.score !== undefined) {
+          var consSource = cons.source || 'blosum62_proxy';
+          var consAvailable = cons.available;
+          var consTitle = cons.source_detail || '';
+          var consScore = cons.score;
+          var consClass = consAvailable ? 'cons-real' : 'cons-proxy';
+          consHTML = '<span class="rk-cons ' + consClass + '" title="' + consTitle + '">' +
+            consScore.toFixed(2) + '<span class="cons-src">' + (consSource === 'blosum62_proxy' ? '(BLOSUM)' : '(UniProt)') + '</span></span>';
+        }
+
+        // UniProt functional annotations
+        var func = r.functional_annotations || {};
+        var funcHTML = '';
+        if (func.available && func.features && func.features.length > 0) {
+          var featTags = func.features.slice(0, 2).map(function (f) {
+            return '<span class="uniprot-tag ' + f.type.toLowerCase() + '" title="' + (f.description || '') + '">' + f.type + '</span>';
+          }).join('');
+          funcHTML = '<span class="rk-uniprot" title="mapping: ' + (func.mapping_confidence || 'low') + '">' + featTags + '</span>';
+        } else {
+          funcHTML = '<span class="rk-uniprot none" title="No UniProt functional annotation available">—</span>';
+        }
+
         h += '<div class="ranking-row" data-chain="' + r.chain_id + '" data-resi="' + r.res_id + '" data-resname="' + r.res_name + '">' +
           '<span class="rk-rank">#' + r.rank + '</span>' +
           '<span class="rk-residue">' + (r.residue_key || '') + '</span>' +
           '<span class="rk-score">' + (r.score || 0).toFixed(2) + '</span>' +
           '<span class="rk-dist">' + (r.min_distance || '?') + 'A</span>' +
-          '<span class="rk-types">' + types.join(', ') + '</span>' +
-          '<span class="rk-conf ' + confClass + '">' + (r.residue_confidence || 'low') + '</span>' +
+          enrichHTML +
+          consHTML +
+          funcHTML +
         '</div>';
-        if (r.why_matters) {
-          h += '<div class="ranking-why">' + r.why_matters + '</div>';
+
+        // Evidence provenance row
+        var ev = r.evidence_tags || {};
+        var lims = r.residue_limitations || [];
+        var whyParts = [];
+        if (r.why_matters) whyParts.push('<span class="ev-why">' + r.why_matters + '</span>');
+        var evTags = [];
+        if (ev.structural) evTags.push('<span class="ev-tag structural">[S] Structural</span>');
+        if (ev.enrichment) evTags.push('<span class="ev-tag enrichment">[E] Enrichment</span>');
+        if (ev.functional) evTags.push('<span class="ev-tag functional">[F] UniProt</span>');
+        if (ev.conservation) evTags.push('<span class="ev-tag conservation">[C] Conservation</span>');
+        if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] BLOSUM62 proxy</span>');
+        if (evTags.length) whyParts.push('<span class="ev-tags">' + evTags.join(' ') + '</span>');
+        if (lims.length > 0) {
+          whyParts.push('<span class="ev-lims">Limitations: ' + lims.slice(0, 2).join('; ') + '</span>');
         }
+
+        h += '<div class="ranking-why">' + whyParts.join(' · ') + '</div>';
       });
       h += '</div>';
     }

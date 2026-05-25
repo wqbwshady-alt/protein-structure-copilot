@@ -707,13 +707,70 @@ def build_structured_prompt(mode, data):
 
         limitations_line = limitations.get("disclaimer", "")
 
+        # Build enrichment summary
+        enrichment_block = ""
+        enrichment = data.get("enrichment", {})
+        if enrichment and enrichment.get("significant_types"):
+            enrichment_block = (
+                "STATISTICAL ENRICHMENT (pocket vs whole protein, Fisher exact test):\n"
+                + "\n".join(f"- {t}" for t in enrichment["significant_types"])
+            )
+
+        # Build per-residue conservation + functional annotation lines
+        conservation_lines = []
+        for r in (important_residues or [])[:10]:
+            residue_key = r.get("residue_key", "")
+            cons = r.get("conservation", {})
+            func = r.get("functional_annotations", {})
+            ev = r.get("evidence_tags", {})
+            rlim = r.get("residue_limitations", [])
+
+            parts = [f"{residue_key}:"]
+
+            if cons.get("available"):
+                parts.append(f"conservation_score={cons.get('score', '?')}")
+                parts.append(f"conservation_source={cons.get('source', '?')}")
+            else:
+                parts.append(f"blosum62_proxy={cons.get('score', '?')} (no conservation data)")
+                parts.append(f"conservation_source={cons.get('source', '?')}")
+
+            if func.get("available") and func.get("features"):
+                feat_strs = [f"{f['type']}({f.get('description','')[:60]})"
+                            for f in func["features"][:3]]
+                parts.append(f"UniProt: {', '.join(feat_strs)}")
+                parts.append(f"mapping_confidence={func.get('mapping_confidence','?')}")
+            else:
+                parts.append("UniProt: no functional annotation")
+
+            parts.append(f"evidence: structural={ev.get('structural',True)}, "
+                        f"functional={ev.get('functional',False)}, "
+                        f"conservation={ev.get('conservation',False)}, "
+                        f"proxy_only={ev.get('proxy_only',True)}")
+
+            if rlim:
+                parts.append(f"limitations: {'; '.join(rlim[:2])}")
+
+            conservation_lines.append(" | ".join(parts))
+
         data_block = f"""Ligand: {ligand_name}
 
 Pocket residue composition (within 5 A):
 Hydrophobic: {counts.get('hydrophobic', 0)} | Polar: {counts.get('polar', 0)} | Positive: {counts.get('positive', 0)} | Negative: {counts.get('negative', 0)}
 
+{enrichment_block}
+
 IMPORTANT RESIDUES (pre-computed ranking — use these exact scores and distances):
 {chr(10).join(ranking_lines) if ranking_lines else 'No ranked residues available.'}
+
+ENRICHMENT + CONSERVATION + FUNCTIONAL ANNOTATIONS (per-residue):
+{chr(10).join(conservation_lines) if conservation_lines else 'No enrichment/conservation data available.'}
+
+IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO mention:
+- enrichment fold vs whole protein (if available)
+- UniProt functional annotations (if available) — cite exact feature type and description
+- conservation/blosum proxy score and what it suggests
+- Explicitly state when functional/conservation data is MISSING (e.g. "no UniProt annotation available for this residue").
+- Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
 
 CONFIDENCE ASSESSMENT:
 {confidence_line}

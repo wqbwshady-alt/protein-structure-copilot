@@ -16,6 +16,9 @@ from werkzeug.utils import secure_filename
 from analysis_core import (
     analyze_ligand_pocket,
     classify_residue,
+    compute_full_protein_composition,
+    compute_pocket_enrichment,
+    merge_enhancement,
     format_ligand_suggestions,
     get_hotspot_residues,
     is_pdb_file,
@@ -27,6 +30,7 @@ from analysis_core import (
     LimitationsBuilder,
     SafetyGuardrails,
 )
+from conservation import compute_conservation_annotation
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from ai_client import generate_structured_interpretation
@@ -570,8 +574,30 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
     ranker = ResidueRanker(contact_residues, interactions)
     important_residues = ranker.score_all()
 
+    # --- Enrichment + Conservation analysis (fail-safe: never blocks pipeline) ---
+    enrichment = {}
+    conservation_annotations = {}
+    try:
+        all_atoms = parse_pdb_atoms(pdb_path)
+        full_composition = compute_full_protein_composition(all_atoms)
+        enrichment = compute_pocket_enrichment(counts, full_composition)
+    except Exception:
+        pass
+
+    try:
+        conservation_annotations = compute_conservation_annotation(
+            contact_residues, pdb_path
+        )
+    except Exception:
+        pass
+
+    enhanced_residues = merge_enhancement(
+        important_residues, enrichment, conservation_annotations
+    )
+    # ---
+
     ca = ConfidenceAssessor(contact_residues, interactions, ligand_detected=True)
-    confidence = ca.assess(important_residues)
+    confidence = ca.assess(enhanced_residues)
 
     lb = LimitationsBuilder()
     limitations = lb.build(mode="ligand")
@@ -584,7 +610,8 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "contact_residues": contact_residues,
         "counts": counts,
         "interactions": interactions,
-        "important_residues": important_residues,
+        "important_residues": enhanced_residues,
+        "enrichment": enrichment,
         "confidence": confidence,
         "limitations": limitations,
     })
@@ -613,7 +640,7 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "ai_sections": ai_sections,
         "ai_report_download_url": url_for("download_report", filename=ai_report_filename),
         "schema_version": "2.0",
-        "important_residues": important_residues,
+        "important_residues": enhanced_residues,
         "confidence": confidence,
         "limitations": limitations,
         "recommended_next_steps": next_steps,
