@@ -284,7 +284,7 @@
         '</div>';
       }
 
-      h += '<div class="ranking-table">';
+      h += '<div class="ranking-scroll"><div class="ranking-table">';
       h += '<div class="ranking-header">' +
         '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
       '</div>';
@@ -320,16 +320,16 @@
           var consClass = consAvailable ? 'cons-real' : 'cons-proxy';
           var consLabel = '';
           if (consSource === 'consurf_db') {
-            consLabel = '[C] ConSurf';
+            consLabel = '[C]';
             consClass = 'cons-real cons-consurf';
           } else if (consSource === 'blosum62_proxy') {
-            consLabel = '[P] BLOSUM';
+            consLabel = '[P]';
             consClass = 'cons-proxy';
           } else {
             consLabel = '(' + consSource + ')';
           }
           consHTML = '<span class="rk-cons ' + consClass + '" title="' + consTitle + '">' +
-            consScore.toFixed(2) + '<span class="cons-src">' + consLabel + '</span></span>';
+            consScore.toFixed(2) + ' <span class="cons-src">' + consLabel + '</span></span>';
         }
 
         // UniProt functional annotations
@@ -341,18 +341,8 @@
           }).join('');
           funcHTML = '<span class="rk-uniprot" title="mapping: ' + (func.mapping_confidence || 'low') + '">' + featTags + '</span>';
         } else {
-          funcHTML = '<span class="rk-uniprot none" title="No UniProt functional annotation available">—</span>';
+          funcHTML = '<span class="rk-uniprot none" title="No UniProt functional annotation available">&mdash;</span>';
         }
-
-        h += '<div class="ranking-row" data-chain="' + r.chain_id + '" data-resi="' + r.res_id + '" data-resname="' + r.res_name + '">' +
-          '<span class="rk-rank">#' + r.rank + '</span>' +
-          '<span class="rk-residue">' + (r.residue_key || '') + '</span>' +
-          '<span class="rk-score">' + (r.score || 0).toFixed(2) + '</span>' +
-          '<span class="rk-dist">' + (r.min_distance || '?') + 'A</span>' +
-          enrichHTML +
-          consHTML +
-          funcHTML +
-        '</div>';
 
         // Evidence provenance row
         var ev = r.evidence_tags || {};
@@ -367,12 +357,21 @@
         if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] Substitution proxy</span>');
         if (evTags.length) whyParts.push('<span class="ev-tags">' + evTags.join(' ') + '</span>');
         if (lims.length > 0) {
-          whyParts.push('<span class="ev-lims">Limitations: ' + lims.slice(0, 2).join('; ') + '</span>');
+          whyParts.push('<span class="ev-lims">' + lims.slice(0, 2).join('; ') + '</span>');
         }
 
-        h += '<div class="ranking-why">' + whyParts.join(' · ') + '</div>';
+        h += '<div class="ranking-row" data-chain="' + r.chain_id + '" data-resi="' + r.res_id + '" data-resname="' + r.res_name + '">' +
+          '<span class="rk-rank">#' + r.rank + '</span>' +
+          '<span class="rk-residue">' + (r.residue_key || '') + '</span>' +
+          '<span class="rk-score">' + (r.score || 0).toFixed(2) + '</span>' +
+          '<span class="rk-dist">' + (r.min_distance || '?') + 'A</span>' +
+          enrichHTML +
+          consHTML +
+          funcHTML +
+          (whyParts.length ? '<div class="ranking-why">' + whyParts.join(' &middot; ') + '</div>' : '') +
+        '</div>';
       });
-      h += '</div>';
+      h += '</div></div>';
     }
 
     // --- v2: Confidence Badge ---

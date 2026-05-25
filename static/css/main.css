@@ -1320,17 +1320,24 @@ body::before {
    v2: Important Residues Ranking Table
    ============================================================ */
 
-.ranking-table {
-  background: var(--bg-elevated);
+/* ---- Ranking table wrapper (horizontal scroll on narrow screens) ---- */
+.ranking-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 4px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  margin-bottom: 4px;
+  background: var(--bg-elevated);
+}
+
+.ranking-table {
+  min-width: 900px;
+  background: var(--bg-elevated);
 }
 
 .ranking-header {
   display: grid;
-  grid-template-columns: 48px 1fr 54px 58px 1fr 72px;
+  grid-template-columns: 60px 130px 68px 72px 100px 130px 140px;
   gap: 8px;
   padding: 8px 12px;
   font-size: 10px;
@@ -1340,11 +1347,12 @@ body::before {
   color: var(--text-muted);
   background: var(--bg-overlay);
   border-bottom: 1px solid var(--border-subtle);
+  align-items: center;
 }
 
 .ranking-row {
   display: grid;
-  grid-template-columns: 48px 1fr 54px 58px 1fr 72px;
+  grid-template-columns: 60px 130px 68px 72px 100px 130px 140px;
   gap: 8px;
   padding: 10px 12px;
   font-size: 12px;
@@ -1353,6 +1361,7 @@ body::before {
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   transition: background var(--ease-out);
+  align-items: center;
 }
 
 .ranking-row:last-child { border-bottom: none; }
@@ -1362,7 +1371,7 @@ body::before {
 }
 
 .rk-rank { color: var(--accent); font-weight: 700; }
-.rk-residue { font-weight: 600; }
+.rk-residue { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk-score { color: var(--data); font-weight: 600; }
 .rk-dist { color: var(--text-secondary); }
 .rk-types { color: var(--text-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1380,11 +1389,13 @@ body::before {
 .rk-conf.conf-low     { background: rgba(240,71,91,0.12); color: var(--error); }
 
 .ranking-why {
-  padding: 6px 12px 10px 60px;
+  grid-column: 1 / -1;
+  padding: 6px 12px 10px 12px;
   font-size: 11px;
   color: var(--text-muted);
   line-height: 1.5;
   border-bottom: 1px solid var(--border-subtle);
+  display: block;
 }
 
 /* ---- Enrichment Bar ---- */
@@ -1440,13 +1451,14 @@ body::before {
 }
 
 .rk-cons {
-  display: inline-block;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
-  min-width: 44px;
-  text-align: center;
+  white-space: nowrap;
 }
 .rk-cons.cons-real {
   background: rgba(59,130,246,0.12);
@@ -1461,11 +1473,10 @@ body::before {
   color: var(--text-muted);
 }
 .cons-src {
-  display: block;
-  font-size: 8px;
-  font-weight: 400;
-  color: var(--text-muted);
-  line-height: 1;
+  font-size: 10px;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.8;
 }
 
 .rk-uniprot {
