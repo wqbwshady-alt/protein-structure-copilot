@@ -36,6 +36,7 @@ def parse_pdb_atoms(pdb_path):
                     x = float(line[30:38])
                     y = float(line[38:46])
                     z = float(line[46:54])
+                    b_factor = float(line[60:66]) if len(line) >= 66 else 0.0
                 except ValueError:
                     continue
 
@@ -46,7 +47,8 @@ def parse_pdb_atoms(pdb_path):
                     "res_name": res_name,
                     "chain_id": chain_id,
                     "res_id": res_id,
-                    "coord": (x, y, z)
+                    "coord": (x, y, z),
+                    "b_factor": b_factor,
                 })
 
     return atoms
@@ -668,6 +670,7 @@ def merge_enhancement(ranked_residues, enrichment, conservation_annotations):
         entry["conservation"] = {}
         entry["functional_annotations"] = {}
         entry["evidence_tags"] = {}
+        entry["annotation_status"] = "failed"
         entry["residue_limitations"] = []
 
         if conservation_annotations and key in conservation_annotations:
@@ -675,6 +678,7 @@ def merge_enhancement(ranked_residues, enrichment, conservation_annotations):
             entry["conservation"] = ca.get("conservation", {})
             entry["functional_annotations"] = ca.get("functional_annotations", {})
             entry["evidence_tags"] = ca.get("evidence_tags", {})
+            entry["annotation_status"] = ca.get("annotation_status", "failed")
             entry["residue_limitations"] = ca.get("limitations", [])
         else:
             # No-data fallback for this residue

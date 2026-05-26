@@ -284,9 +284,102 @@
         '</div>';
       }
 
+      // Overall annotation status bar
+      var annoSummary = data.annotation_summary || {};
+      if (annoSummary.status) {
+        var annoBarClass = 'annotation-bar';
+        var annoStatusText = '';
+        var annoDetail = '';
+        var statusMap = {
+          success: 'UniProt annotations available',
+          partial: 'UniProt annotations partially available',
+          unavailable: 'UniProt: no annotations at mapped positions',
+          no_mapping: 'UniProt: no PDB-to-UniProt mapping',
+          failed: 'UniProt: fetch failed',
+        };
+        var statusClassMap = {
+          success: 'anno-success',
+          partial: 'anno-partial',
+          unavailable: 'anno-unavailable',
+          no_mapping: 'anno-unavailable',
+          failed: 'anno-failed',
+        };
+        annoStatusText = statusMap[annoSummary.status] || 'UniProt: unknown status';
+        if (annoSummary.residues_with_data !== undefined && annoSummary.total_residues) {
+          var accList = (annoSummary.accessions_queried || []).join(', ') || 'none';
+          annoDetail = annoSummary.residues_with_data + '/' + annoSummary.total_residues +
+            ' residues annotated' + (accList ? ' (' + accList + ')' : '');
+          if (annoSummary.dbref_found === false) {
+            annoDetail += ' - PDB file lacks DBREF records';
+          }
+          if ((annoSummary.accessions_failed || []).length > 0) {
+            annoDetail += ' - fetch failed for: ' + annoSummary.accessions_failed.join(', ');
+          }
+        }
+        var annoClass = statusClassMap[annoSummary.status] || 'anno-unavailable';
+        h += '<div class="annotation-bar ' + annoClass + '">' +
+          '<span class="annotation-status-label">' + annoStatusText + '</span>' +
+          (annoDetail ? ' <span class="annotation-detail">' + annoDetail + '</span>' : '') +
+        '</div>';
+      }
+
+      // Flexibility summary card
+      var flexSummary = data.flexibility || {};
+      if (flexSummary.classification && flexSummary.classification !== 'no_data') {
+        var flexCardClass = 'result-card';
+        var ratioStr = flexSummary.flexibility_ratio ? ' (ratio: ' + flexSummary.flexibility_ratio.toFixed(2) + 'x)' : '';
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1FCCF;</span> Pocket Flexibility' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            '<span style="font-weight:600;color:var(--text-primary);">' + (flexSummary.label || '') + '</span>' +
+            ' &mdash; Pocket mean B-factor: <strong>' + (flexSummary.mean_b || '?') + '</strong>' +
+            ' vs protein mean: <strong>' + (flexSummary.global_mean_b || '?') + '</strong>' + ratioStr +
+          '</div>' +
+          '<div style="margin-top:6px;display:flex;gap:12px;font-size:11px;flex-wrap:wrap;">';
+        if (flexSummary.rigid_count > 0) {
+          h += '<span style="color:#3b82f6;">&#x25CF; ' + flexSummary.rigid_count + ' rigid</span>';
+        }
+        if (flexSummary.flexible_count > 0) {
+          h += '<span style="color:#f59e0b;">&#x25CF; ' + flexSummary.flexible_count + ' flexible</span>';
+        }
+        if (flexSummary.highly_flexible_count > 0) {
+          h += '<span style="color:#ef4444;">&#x25CF; ' + flexSummary.highly_flexible_count + ' highly flexible</span>';
+        }
+        h += '</div></div>';
+      }
+
+      // Pi-stacking card
+      var piData = data.pi_stacking || {};
+      var piPi = piData.pi_pi_interactions || [];
+      var catPi = piData.cation_pi_interactions || [];
+      if (piPi.length > 0 || catPi.length > 0) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x2B55;</span> Aromatic Interactions' +
+          '</div>';
+        piPi.forEach(function (p) {
+          var typeLabel = {pi_pi_face_to_face:'Face-to-face', pi_pi_edge_to_face:'Edge-to-face', pi_pi_t_shaped:'T-shaped'}[p.type] || p.type;
+          h += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;">' +
+            '&#x3C0;-&#x3C0; ' + typeLabel + ': <strong style="color:var(--text-primary);">' +
+            p.residue1 + ' &harr; ' + p.residue2 + '</strong> ' +
+            '(' + p.distance + 'A, ' + p.angle + '&deg;)' +
+          '</div>';
+        });
+        catPi.forEach(function (c) {
+          h += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;">' +
+            'Cation-&#x3C0;: <strong style="color:var(--text-primary);">' +
+            c.cationic_residue + ' &rarr; ' + c.aromatic_residue + '</strong> ' +
+            '(' + c.distance + 'A)' +
+          '</div>';
+        });
+        h += '</div>';
+      }
+
       h += '<div class="ranking-scroll"><div class="ranking-table">';
       h += '<div class="ranking-header">' +
-        '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
+        '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Flex</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
       '</div>';
       data.important_residues.slice(0, 10).forEach(function (r) {
         var confClass = 'conf-' + (r.residue_confidence || 'low');
@@ -307,6 +400,16 @@
             enrichHTML = '<span class="rk-enrich ' + enrichClass + '" title="' + enrichTitle + '">' +
               (fold >= 1 ? '+' : '') + fold.toFixed(1) + 'x</span>';
           }
+        }
+
+        // Flexibility
+        var flex = r.flexibility || {};
+        var flexHTML = '';
+        if (flex.classification && flex.classification !== 'unknown') {
+          var flexClass = 'flex-' + flex.classification;
+          var flexLabel = {'rigid':'[R]','normal':'','flexible':'[F]','highly_flexible':'[FF]'}[flex.classification] || '';
+          flexHTML = '<span class="rk-flex ' + flexClass + '" title="B-factor: ' + (flex.mean_b || '?') + ' (z=' + (flex.z_score || '?') + ')">' +
+            (flex.mean_b ? flex.mean_b.toFixed(0) : '?') + ' <span class="flex-src">' + flexLabel + '</span></span>';
         }
 
         // Conservation
@@ -332,16 +435,20 @@
             consScore.toFixed(2) + ' <span class="cons-src">' + consLabel + '</span></span>';
         }
 
-        // UniProt functional annotations
+        // UniProt functional annotations — status-aware rendering
         var func = r.functional_annotations || {};
+        var annoStatus = r.annotation_status || 'failed';
         var funcHTML = '';
         if (func.available && func.features && func.features.length > 0) {
           var featTags = func.features.slice(0, 2).map(function (f) {
             return '<span class="uniprot-tag ' + f.type.toLowerCase() + '" title="' + (f.description || '') + '">' + f.type + '</span>';
           }).join('');
-          funcHTML = '<span class="rk-uniprot" title="mapping: ' + (func.mapping_confidence || 'low') + '">' + featTags + '</span>';
+          var statusTitle = 'mapping: ' + (func.mapping_confidence || 'low');
+          funcHTML = '<span class="rk-uniprot" title="' + statusTitle + '">' + featTags + '</span>';
         } else {
-          funcHTML = '<span class="rk-uniprot none" title="No UniProt functional annotation available">&mdash;</span>';
+          var statusLabel = {no_mapping:'no mapping', unavailable:'no annotation', failed:'fetch failed', skipped:'skipped'}[annoStatus] || 'no data';
+          var statusTitle = {no_mapping:'No PDB-to-UniProt mapping', unavailable:'No annotation at mapped position', failed:'UniProt API fetch failed', skipped:'Non-standard residue skipped'}[annoStatus] || 'No UniProt data';
+          funcHTML = '<span class="rk-uniprot none status-' + annoStatus + '" title="' + statusTitle + '">&mdash; <span class="uniprot-status-text">' + statusLabel + '</span></span>';
         }
 
         // Evidence provenance row
@@ -352,7 +459,13 @@
         var evTags = [];
         if (ev.structural) evTags.push('<span class="ev-tag structural">[S] Structural</span>');
         if (ev.enrichment) evTags.push('<span class="ev-tag enrichment">[E] Enrichment</span>');
-        if (ev.functional) evTags.push('<span class="ev-tag functional">[F] UniProt</span>');
+        if (ev.functional) {
+          var funcTagClass = 'functional';
+          if (annoStatus === 'partial') funcTagClass = 'functional-partial';
+          evTags.push('<span class="ev-tag ' + funcTagClass + '">[F] UniProt</span>');
+        } else if (annoStatus === 'failed') {
+          evTags.push('<span class="ev-tag functional-failed">[F] UniProt failed</span>');
+        }
         if (ev.conservation) evTags.push('<span class="ev-tag conservation">[C] True conservation</span>');
         if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] Substitution proxy</span>');
         if (evTags.length) whyParts.push('<span class="ev-tags">' + evTags.join(' ') + '</span>');
@@ -365,6 +478,7 @@
           '<span class="rk-residue">' + (r.residue_key || '') + '</span>' +
           '<span class="rk-score">' + (r.score || 0).toFixed(2) + '</span>' +
           '<span class="rk-dist">' + (r.min_distance || '?') + 'A</span>' +
+          flexHTML +
           enrichHTML +
           consHTML +
           funcHTML +

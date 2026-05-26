@@ -22,6 +22,18 @@ import re
 
 import requests
 
+# ---- Annotation status model ----
+
+# Per-residue UniProt annotation status for frontend rendering
+ANNOTATION_STATUS = {
+    "success": "UniProt data available for this residue",
+    "partial": "UniProt data available but mapping confidence is low/medium",
+    "unavailable": "UniProt API reachable but no annotation at this position",
+    "no_mapping": "No PDB-to-UniProt mapping (no DBREF or position out of range)",
+    "skipped": "UniProt skipped (non-standard residue)",
+    "failed": "UniProt API fetch failed (network error or bad response)",
+}
+
 # ---- Paths ----
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "uniprot")
@@ -516,14 +528,60 @@ def compute_conservation_annotation(contact_residues, pdb_path, consurf_scores=N
 
     # Step 4: Build per-residue annotations
     result = {}
+    status_counts = {s: 0 for s in ANNOTATION_STATUS}
     for chain_id, res_name, res_id in residue_keys:
         key = f"{chain_id}:{res_name}{res_id}"
         cs = consurf_scores.get(key) if consurf_scores else None
         result[key] = _build_residue_annotation(
             res_name, key, residue_mapping, accession_features, consurf_entry=cs
         )
+        st = result[key].get("annotation_status", "failed")
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+    result["_overall"] = _build_overall_summary(
+        status_counts, accessions_to_fetch, accession_features,
+        dbref_mappings, len(residue_keys)
+    )
 
     return result
+
+
+def _build_overall_summary(status_counts, accessions_to_fetch, accession_features,
+                           dbref_mappings, total_residues):
+    """Build overall annotation status summary for frontend display."""
+    residues_with_data = status_counts.get("success", 0) + status_counts.get("partial", 0)
+
+    if not dbref_mappings:
+        overall = "no_mapping"
+    elif not accessions_to_fetch:
+        overall = "no_mapping"
+    elif status_counts.get("failed", 0) == total_residues:
+        overall = "failed"
+    elif status_counts.get("failed", 0) > 0:
+        overall = "partial"
+    elif residues_with_data == 0:
+        overall = "unavailable"
+    elif status_counts.get("partial", 0) > 0 or residues_with_data < total_residues:
+        overall = "partial"
+    else:
+        overall = "success"
+
+    accessions_queried = sorted(accessions_to_fetch)
+    accessions_failed = sorted(
+        a for a in accessions_to_fetch if a not in accession_features
+    )
+
+    return {
+        "status": overall,
+        "accessions_queried": accessions_queried,
+        "accessions_failed": accessions_failed,
+        "residues_with_data": residues_with_data,
+        "total_residues": total_residues,
+        "dbref_found": bool(dbref_mappings),
+        "status_breakdown": {
+            k: status_counts.get(k, 0) for k in ANNOTATION_STATUS
+        },
+    }
 
 
 def _no_data_fallback(res_name, consurf_entry=None):
@@ -587,6 +645,7 @@ def _no_data_fallback(res_name, consurf_entry=None):
                 "conservation": True,
                 "proxy_only": False,
             },
+            "annotation_status": "no_mapping",
             "limitations": limitations,
         }
 
@@ -615,6 +674,7 @@ def _no_data_fallback(res_name, consurf_entry=None):
             "conservation": False,
             "proxy_only": True,
         },
+        "annotation_status": "no_mapping",
         "limitations": [
             "No experimental validation of binding contribution",
             "No energetic calculation (distance-based geometric classification only)",
@@ -728,6 +788,21 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
     if not feat_available and residue_key in residue_mapping:
         limitations.append("No UniProt functional annotation for this residue position")
 
+    # --- Determine annotation status ---
+    if residue_key not in residue_mapping:
+        annotation_status = "no_mapping"
+    elif residue_key in residue_mapping:
+        acc = residue_mapping[residue_key][0]
+        if acc not in accession_features:
+            annotation_status = "failed"
+        elif feat_available:
+            map_conf = residue_mapping[residue_key][2]
+            annotation_status = "success" if map_conf == "high" else "partial"
+        else:
+            annotation_status = "unavailable"
+    else:
+        annotation_status = "failed"
+
     evidence_tags = {
         "structural": True,
         "enrichment": True,
@@ -745,5 +820,6 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
             "features": features,
         },
         "evidence_tags": evidence_tags,
+        "annotation_status": annotation_status,
         "limitations": limitations,
     }

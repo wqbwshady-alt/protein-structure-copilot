@@ -32,6 +32,8 @@ from analysis_core import (
 )
 from conservation import compute_conservation_annotation
 from consurf import extract_pdb_id, map_consurf_to_residues, query_consurf_db
+from flexibility import compute_pocket_flexibility
+from pi_stacking import detect_pi_interactions
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from ai_client import generate_structured_interpretation
@@ -598,12 +600,43 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         conservation_annotations = compute_conservation_annotation(
             contact_residues, pdb_path, consurf_scores=consurf_scores if consurf_scores else None
         )
-    except Exception:
-        pass
+    except Exception as e:
+        conservation_annotations = {
+            "_overall": {
+                "status": "failed",
+                "error": str(e)[:200],
+                "accessions_queried": [],
+                "accessions_failed": [],
+                "residues_with_data": 0,
+                "total_residues": len(contact_residues),
+                "dbref_found": False,
+            }
+        }
 
     enhanced_residues = merge_enhancement(
         important_residues, enrichment, conservation_annotations
     )
+    # ---
+
+    # --- B-factor flexibility analysis ---
+    flexibility_result = {}
+    try:
+        all_atoms = parse_pdb_atoms(pdb_path)
+        flexibility_result = compute_pocket_flexibility(contact_residues, all_atoms)
+        for r in enhanced_residues:
+            key = r.get("residue_key", "")
+            if key in flexibility_result.get("per_residue", {}):
+                r["flexibility"] = flexibility_result["per_residue"][key]
+    except Exception:
+        pass
+
+    # --- Pi-stacking / cation-pi detection ---
+    pi_stacking_result = {}
+    try:
+        all_atoms = parse_pdb_atoms(pdb_path)
+        pi_stacking_result = detect_pi_interactions(contact_residues, all_atoms)
+    except Exception:
+        pass
     # ---
 
     ca = ConfidenceAssessor(contact_residues, interactions, ligand_detected=True)
@@ -654,6 +687,15 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "confidence": confidence,
         "limitations": limitations,
         "recommended_next_steps": next_steps,
+        "flexibility": flexibility_result.get("pocket_summary", {}) if flexibility_result else {},
+        "pi_stacking": pi_stacking_result if pi_stacking_result else {},
+        "annotation_summary": conservation_annotations.get("_overall", {
+            "status": "failed",
+            "error": "Annotation pipeline not executed",
+        }) if isinstance(conservation_annotations, dict) else {
+            "status": "failed",
+            "error": "Annotation pipeline not executed",
+        },
     }
 
 

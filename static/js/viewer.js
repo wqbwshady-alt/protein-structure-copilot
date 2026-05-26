@@ -28,16 +28,16 @@
   /* ---- Base styling ---- */
   function _applyBaseStyle() {
     if (!viewer) return;
-    viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+    viewer.setStyle({}, { cartoon: { color: '#6b8fa8', opacity: 0.82 } });
     if (!_ligandName) return;
 
-    // Ligand: bright red sticks
-    viewer.setStyle({ resn: _ligandName }, { stick: { color: 'red', radius: 0.25 } });
+    // Ligand: muted red sticks
+    viewer.setStyle({ resn: _ligandName }, { stick: { color: '#e05060', radius: 0.22 } });
 
-    // Pocket residues: yellow sticks within 5A
+    // Pocket residues: subtle slate sticks within 5A
     viewer.addStyle(
       { within: { distance: 5, sel: { resn: _ligandName } } },
-      { stick: { color: 'yellow', radius: 0.18 } }
+      { stick: { color: '#8899aa', radius: 0.12 } }
     );
 
     _pocketSelections.clear();
@@ -53,7 +53,7 @@
       viewer.addCylinder({
         start: { x: ix.start[0], y: ix.start[1], z: ix.start[2] },
         end:   { x: ix.end[0],   y: ix.end[1],   z: ix.end[2] },
-        radius: 0.08, color: _ixColor(ix), dashed: true
+        radius: 0.06, color: _ixColor(ix), dashed: true
       });
     });
   }
@@ -82,11 +82,11 @@
     _hotspots.forEach(function (r) {
       viewer.setStyle(
         { chain: r.chain_id, resi: r.res_id },
-        { stick: { color: 'orange', radius: 0.45 }, sphere: { color: 'orange', radius: 0.75 } }
+        { stick: { color: '#e09040', radius: 0.30 }, sphere: { color: '#e09040', radius: 0.50 } }
       );
       viewer.addResLabels(
         { chain: r.chain_id, resi: r.res_id },
-        { fontColor: 'black', backgroundColor: 'orange', fontSize: 12, showBackground: true }
+        { fontColor: '#1a1a2e', backgroundColor: '#e09040', fontSize: 11, showBackground: true }
       );
     });
   }
@@ -95,10 +95,10 @@
   function _drawMutations() {
     if (!viewer) return;
     _lostResidues.forEach(function (r) {
-      viewer.setStyle({ chain: r.chain_id, resi: r.res_id }, { stick: { color: 'red', radius: 0.35 } });
+      viewer.setStyle({ chain: r.chain_id, resi: r.res_id }, { stick: { color: '#e0485a', radius: 0.28 } });
     });
     _gainedResidues.forEach(function (r) {
-      viewer.setStyle({ chain: r.chain_id, resi: r.res_id }, { stick: { color: 'green', radius: 0.35 } });
+      viewer.setStyle({ chain: r.chain_id, resi: r.res_id }, { stick: { color: '#3cb878', radius: 0.28 } });
     });
   }
 
@@ -152,6 +152,8 @@
 
     if (_ligandName) viewer.zoomTo({ resn: _ligandName });
     else viewer.zoomTo();
+    // Pull back camera 1.5x for breathing room
+    viewer.zoom(0.67);
     viewer.render();
     viewer.resize();
 
@@ -169,15 +171,15 @@
     viewer.removeAllLabels();
     viewer.removeAllSurfaces();
 
-    viewer.setStyle({}, { cartoon: { color: 'lightgrey', opacity: 0.32 } });
-    viewer.setStyle({ resn: _ligandName }, { stick: { color: 'yellow', radius: 0.3 } });
+    viewer.setStyle({}, { cartoon: { color: '#6b8fa8', opacity: 0.25 } });
+    viewer.setStyle({ resn: _ligandName }, { stick: { color: '#e0c040', radius: 0.25 } });
     viewer.setStyle(
       { chain: residue.chain_id, resi: residue.res_id },
-      { stick: { color: 'orange', radius: 0.55 }, sphere: { color: 'orange', radius: 1.0 } }
+      { stick: { color: '#e09040', radius: 0.40 }, sphere: { color: '#e09040', radius: 0.70 } }
     );
     viewer.addResLabels(
       { chain: residue.chain_id, resi: residue.res_id },
-      { fontColor: 'black', backgroundColor: 'orange', fontSize: 14, showBackground: true }
+      { fontColor: '#1a1a2e', backgroundColor: '#e09040', fontSize: 13, showBackground: true }
     );
 
     _interactions.filter(function (ix) {
@@ -207,16 +209,18 @@
     viewer.removeAllLabels();
     viewer.removeAllSurfaces();
 
-    viewer.setStyle({}, { cartoon: { color: 'lightgrey', opacity: 0.25 } });
-    viewer.setStyle({ resn: _ligandName }, { stick: { color: 'yellow', radius: 0.3 } });
+    viewer.setStyle({}, { cartoon: { color: '#6b8fa8', opacity: 0.22 } });
+    viewer.setStyle({ resn: _ligandName }, { stick: { color: '#e0c040', radius: 0.25 } });
     _drawHotspots();
     _drawLines();
     _drawLabels();
 
     if (_hotspots.length > 0) {
       viewer.zoomTo(_hotspots.map(function (r) { return { chain: r.chain_id, resi: r.res_id }; }));
+      viewer.zoom(0.75);
     } else if (_ligandName) {
       viewer.zoomTo({ resn: _ligandName });
+      viewer.zoom(0.67);
     }
     viewer.render();
   }
