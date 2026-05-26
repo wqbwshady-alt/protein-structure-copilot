@@ -403,6 +403,24 @@
         h += '</div>';
       }
 
+      // Salt bridge card
+      var sb = data.salt_bridges || {};
+      if (sb.total > 0) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F9F2;</span> Salt Bridges (ASP/GLU ↔ LYS/ARG/HIS)' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            'Total: <strong>' + sb.total + '</strong>' +
+            ' &mdash; Strong: <strong style="color:#3b82f6;">' + (sb.strong || 0) + '</strong> (<3.2A)' +
+            ' &middot; Moderate: <strong style="color:#8b5cf6;">' + (sb.moderate || 0) + '</strong> (3.2-3.6A)' +
+            ' &middot; Weak: <strong style="color:#94a3b8;">' + (sb.weak || 0) + '</strong> (3.6-4.0A)' +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'Close-range charge-charge interactions between carboxylate (ASP/GLU) and ammonium/guanidinium (LYS/ARG/HIS) side chains.' +
+          '</div></div>';
+      }
+
       // Hydrogen bond geometry card
       var hb = data.hbonds || {};
       if (hb.total > 0) {

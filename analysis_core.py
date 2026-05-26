@@ -1075,6 +1075,16 @@ class SafetyGuardrails:
                     f"{r['min_distance']}A — {types}{energy_note}{flex_note}"
                 )
 
+            # Salt bridge mention
+            sb = data.get("salt_bridges", {})
+            if sb and sb.get("summary", {}).get("total", 0) > 0:
+                s = sb["summary"]
+                sections.append(
+                    f"[S] Salt bridges: {s['total']} total "
+                    f"(strong: {s.get('strong',0)}, moderate: {s.get('moderate',0)}, "
+                    f"weak: {s.get('weak',0)})"
+                )
+
             # H-bond mention
             hb = data.get("hbonds", {})
             if hb and hb.get("summary", {}).get("total", 0) > 0:

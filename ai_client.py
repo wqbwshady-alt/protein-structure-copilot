@@ -862,7 +862,35 @@ IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO men
 - Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
 - Do NOT describe approximate LJ+Coulomb scores as binding affinities or ΔG predictions.
 
-HYDROGEN BOND GEOMETRY (Baker-Hubbard criteria: H···A<2.5A, D···A<3.5A, angle>120°):
+SALT BRIDGES (acidic ASP/GLU ↔ basic LYS/ARG/HIS, distance < 4.0A):
+"""
+
+        # Build salt bridge block
+        sb = data.get("salt_bridges", {})
+        if sb and sb.get("summary", {}).get("total", 0) > 0:
+            s = sb["summary"]
+            data_block += (
+                f"Total salt bridges: {s['total']} "
+                f"(strong: {s.get('strong',0)} <3.2A, "
+                f"moderate: {s.get('moderate',0)} 3.2-3.6A, "
+                f"weak: {s.get('weak',0)} 3.6-4.0A). "
+                f"Acidic residues involved: {s.get('acidic_residues_involved',0)}, "
+                f"Basic residues involved: {s.get('basic_residues_involved',0)}.\n"
+            )
+            for b in sb.get("bridges", [])[:5]:
+                data_block += (
+                    f"- {b['acidic_residue']}:{b['acidic_atom']} ↔ "
+                    f"{b['basic_residue']}:{b['basic_atom']} "
+                    f"({b['distance']}A, {b['strength']})\n"
+                )
+            data_block += (
+                "In Section C, distinguish salt bridges from non-specific "
+                "long-range electrostatic contacts. Salt bridges are specific, "
+                "close-range charge-charge interactions that contribute "
+                "significantly to binding specificity and stability.\n\n"
+            )
+
+        data_block += f"""HYDROGEN BOND GEOMETRY (Baker-Hubbard criteria: H···A<2.5A, D···A<3.5A, angle>120°):
 """
 
         # Build H-bond block
