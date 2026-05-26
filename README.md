@@ -5,7 +5,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://protein-structure-copilot.onrender.com)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
 [![Flask](https://img.shields.io/badge/flask-3.0-lightgrey)](https://flask.palletsprojects.com)
-[![Tests](https://img.shields.io/badge/tests-58%20passed-green)]()
+[![Tests](https://img.shields.io/badge/tests-74%20passed-green)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## Architecture
@@ -128,10 +128,17 @@ The app works without it — falls back to rule-based interpretation.
 protein-structure-copilot/
 ├── app.py                  # Flask routes, analysis orchestration (~1000 lines)
 ├── analysis_core.py        # PDB parser, pocket detection, residue ranking
-├── conservation.py         # UniProt REST API + BLOSUM62 + DBREF mapping
+├── conservation.py         # UniProt REST API + BLOSUM62 + variant constraint
 ├── consurf.py              # ConSurf-DB evolutionary conservation (2-step API)
 ├── flexibility.py          # B-factor pocket flexibility analysis
 ├── pi_stacking.py          # Pi-pi / cation-pi geometry detection
+├── hbond_detection.py      # Hydrogen bond geometry (Baker-Hubbard criteria)
+├── salt_bridge.py          # Salt bridge detection (ASP/GLU ↔ LYS/ARG/HIS)
+├── water_bridges.py        # Water-mediated protein-ligand contacts
+├── sasa.py                 # Solvent accessible surface area (Shrake-Rupley)
+├── energy_decomposition.py # LJ 12-6 + Coulomb interaction energy
+├── ligand_analysis.py      # RDKit ligand profiling (MW, LogP, TPSA, Ro5)
+├── prodigy_client.py       # Prodigy binding affinity prediction API
 ├── ai_client.py            # LLM client for structured AI interpretation
 ├── reports.py              # Report generation + analysis statistics
 │
@@ -155,6 +162,8 @@ protein-structure-copilot/
 │   ├── test_analysis_core.py
 │   ├── test_conservation.py
 │   ├── test_consurf.py
+│   ├── test_water_bridges.py
+│   ├── test_sasa.py
 │   └── test_app.py
 │
 ├── uploads/                 # Uploaded PDB files (runtime)

@@ -215,6 +215,17 @@
     });
   }
 
+  /* ---- HTML sanitizer (XSS prevention) ---- */
+  function _sanitizeHTML(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[a-zA-Z][^>]*\s+on\w+\s*=\s*["'][^"']*["'][^>]*>/gi, '<' + 'removed>')
+      .replace(/<[a-zA-Z][^>]*\s+on\w+\s*=\s*[^\s>]+[^>]*>/gi, '<' + 'removed>')
+      .replace(/<script[^>]*\/?>/gi, '')
+      .replace(/javascript\s*:/gi, 'blocked:');
+  }
+
   /* ---- Render results ---- */
   function _renderResults(data, mode) {
     var area = document.getElementById('results-area');
@@ -226,15 +237,15 @@
 
     var h = '';
 
-    // AI sections
+    // AI sections (sanitized for XSS prevention)
     if (data.ai_sections && Object.keys(data.ai_sections).length > 0) {
       Object.keys(data.ai_sections).forEach(function (key) {
-        var body = data.ai_sections[key] || '';
-        h += '<details class="ai-section" open><summary>' + key + '</summary>' +
+        var body = _sanitizeHTML(data.ai_sections[key] || '');
+        h += '<details class="ai-section" open><summary>' + _sanitizeHTML(key) + '</summary>' +
           '<div class="section-body">' + body + '</div></details>';
       });
     } else if (data.ai_html) {
-      h += '<div class="section-body" style="padding:0;">' + data.ai_html + '</div>';
+      h += '<div class="section-body" style="padding:0;">' + _sanitizeHTML(data.ai_html) + '</div>';
     }
 
     // Protein summary (protein-only mode)
@@ -264,7 +275,7 @@
     // Comparison
     if (data.comparison_text) {
       h += '<details class="ai-section" style="margin-top:12px;"><summary>Full Comparison Report</summary>' +
-        '<div class="comparison-box">' + data.comparison_text.replace(/\n/g, '<br>') + '</div></details>';
+        '<div class="comparison-box">' + _sanitizeHTML(data.comparison_text).replace(/\n/g, '<br>') + '</div></details>';
     }
 
     // --- v2: Important Residues Ranking Table ---
