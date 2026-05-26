@@ -104,10 +104,29 @@ def _load_cache(accession):
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
         except (json.JSONDecodeError, IOError):
             return None
+        return _normalize_int_keys(data)
     return None
+
+
+def _normalize_int_keys(data):
+    """Convert JSON-stringified int keys back to int after cache deserialization.
+
+    JSON only allows string keys, so json.dump then json.load turns {1: [...]}
+    into {"1": [...]}. This normalization prevents silent lookup failures when
+    callers use integer position keys.
+    """
+    if not isinstance(data, dict):
+        return data
+    result = {}
+    for k, v in data.items():
+        try:
+            result[int(k)] = v
+        except (ValueError, TypeError):
+            result[k] = v
+    return result
 
 
 def _save_cache(accession, data):
