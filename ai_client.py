@@ -776,7 +776,56 @@ IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO men
 - Explicitly state when functional/conservation data is MISSING (e.g. "no UniProt annotation available for this residue").
 - Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
 
-INTERACTION ENERGY DECOMPOSITION (Lennard-Jones 12-6 + Coulomb, distance-dependent dielectric ε=4r):
+LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
+"""
+
+        # Build ligand profile block
+        lp = data.get("ligand_profile", {})
+        if lp:
+            data_block += (
+                f"MW={lp.get('mw','?')} Da | "
+                f"LogP={lp.get('logp','?')} | "
+                f"TPSA={lp.get('tpsa','?')} A^2 | "
+                f"HBD={lp.get('hbd','?')} | "
+                f"HBA={lp.get('hba','?')} | "
+                f"RotBonds={lp.get('rotatable_bonds','?')} | "
+                f"Rings={lp.get('ring_count','?')} (aromatic: {lp.get('aromatic_rings','?')}) | "
+                f"HeavyAtoms={lp.get('heavy_atoms','?')} | "
+                f"Ro5={lp.get('drug_likeness','?')} ({lp.get('ro5_violations','?')} violations)\n"
+            )
+            if lp.get("mmff_strain_energy") is not None:
+                data_block += (
+                    f"MMFF94 minimized energy: {lp.get('mmff_minimized_energy','?')} kcal/mol | "
+                    f"Ligand strain energy: {lp.get('mmff_strain_energy','?')} kcal/mol "
+                    f"(bound conformer vs nearest local minimum)\n"
+                )
+            if lp.get("has_aromatic_system"):
+                data_block += (
+                    "Ligand contains aromatic system — may participate in pi-stacking "
+                    "with aromatic pocket residues.\n"
+                )
+            data_block += "\n"
+
+        # Build Prodigy block
+        prodigy = data.get("prodigy", {})
+        if prodigy:
+            dg = prodigy.get("delta_g")
+            kd = prodigy.get("kd")
+            if dg is not None or kd is not None:
+                data_block += "PRODIGY BINDING AFFINITY PREDICTION:\n"
+                if dg is not None:
+                    data_block += f"ΔG = {dg} kcal/mol\n"
+                if kd is not None:
+                    data_block += f"Kd = {kd}\n"
+                data_block += (
+                    f"Source: {prodigy.get('source','Prodigy')}. "
+                    "NOTE: This is a predicted value from a statistical model trained on "
+                    "experimental binding data. Use cautiously — not an experimental measurement. "
+                    "Cite as 'predicted' not 'measured'. In Section A and F, mention "
+                    "the predicted affinity with appropriate caution.\n\n"
+                )
+
+        data_block += f"""INTERACTION ENERGY DECOMPOSITION (Lennard-Jones 12-6 + Coulomb, distance-dependent dielectric ε=4r):
 """
 
         # Build energy decomposition block

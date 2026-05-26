@@ -377,6 +377,52 @@
         h += '</div>';
       }
 
+      // Ligand profile card
+      var lp = data.ligand_profile || {};
+      if (lp.mw) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F9EA;</span> Ligand Profile (' + (lp.name || '') + ')' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-secondary);line-height:1.8;display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;">' +
+            '<span>MW: <strong>' + (lp.mw || '?') + ' Da</strong></span>' +
+            '<span>LogP: <strong>' + (lp.logp || '?') + '</strong></span>' +
+            '<span>TPSA: <strong>' + (lp.tpsa || '?') + ' A²</strong></span>' +
+            '<span>HBD: <strong>' + (lp.hbd || 0) + '</strong> / HBA: <strong>' + (lp.hba || 0) + '</strong></span>' +
+            '<span>Rotatable bonds: <strong>' + (lp.rotatable_bonds || 0) + '</strong></span>' +
+            '<span>Rings: <strong>' + (lp.ring_count || 0) + '</strong> (arom: ' + (lp.aromatic_rings || 0) + ')</span>' +
+            '<span>Drug-likeness: <strong>' + (lp.drug_likeness || '?') + '</strong></span>' +
+            '<span>Ro5: <strong>' + ((lp.ro5_violations === 0) ? '0 violations (pass)' : (lp.ro5_violations || '?') + ' violations') + '</strong></span>' +
+          '</div>';
+        if (lp.mmff_strain_energy !== undefined && lp.mmff_strain_energy !== null) {
+          h += '<div style="margin-top:6px;font-size:11px;color:var(--text-secondary);">' +
+            'MMFF94 strain energy: <strong>' + (lp.mmff_strain_energy > 0 ? '+' : '') + lp.mmff_strain_energy.toFixed(1) + ' kcal/mol</strong>' +
+            ' (bound vs relaxed conformer)' +
+          '</div>';
+        }
+        h += '</div>';
+      }
+
+      // Prodigy affinity card
+      var prod = data.prodigy || {};
+      if (prod.delta_g !== undefined || prod.kd !== undefined) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F3AF;</span> Binding Affinity Prediction (Prodigy)' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">';
+        if (prod.delta_g !== undefined && prod.delta_g !== null) {
+          h += 'ΔG = <strong style="color:var(--text-primary);">' + prod.delta_g + ' kcal/mol</strong>';
+        }
+        if (prod.kd !== undefined && prod.kd !== null) {
+          h += (prod.delta_g !== undefined ? ' &mdash; ' : '') + 'Kd ≈ <strong style="color:var(--text-primary);">' + prod.kd + '</strong>';
+        }
+        h += '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'Predicted by Prodigy (Utrecht University). Statistical model — not experimental. Use as qualitative reference.' +
+          '</div></div>';
+      }
+
       // Energy summary card
       var eSummary = data.interaction_energy || {};
       if (eSummary.total_energy !== undefined) {

@@ -1120,6 +1120,33 @@ class SafetyGuardrails:
                     f"for aromatic ligand moieties through stacking geometry."
                 )
 
+        # Ligand profile context
+        lp = data.get("ligand_profile", {})
+        if lp:
+            interp_parts.append(
+                f"[S] Ligand profile: MW={lp.get('mw','?')} Da, "
+                f"LogP={lp.get('logp','?')}, TPSA={lp.get('tpsa','?')} A^2, "
+                f"HBD={lp.get('hbd','?')}/HBA={lp.get('hba','?')}, "
+                f"rotatable bonds={lp.get('rotatable_bonds','?')}, "
+                f"{lp.get('aromatic_rings','?')} aromatic ring(s). "
+                f"Drug-likeness: {lp.get('drug_likeness','?')} "
+                f"(Ro5: {lp.get('ro5_violations','?')} violations)."
+            )
+            if lp.get("mmff_strain_energy") is not None:
+                interp_parts.append(
+                    f"[S] MMFF94 strain energy: {lp['mmff_strain_energy']:.1f} kcal/mol "
+                    f"(bound conformer energy penalty)."
+                )
+
+        # Prodigy context
+        prodigy = data.get("prodigy", {})
+        if prodigy.get("delta_g") or prodigy.get("kd"):
+            interp_parts.append(
+                f"[I] Prodigy predicts: ΔG={prodigy.get('delta_g','?')} kcal/mol, "
+                f"Kd={prodigy.get('kd','?')}. These are statistical predictions "
+                f"— not experimental measurements."
+            )
+
         interp_parts.append(
             "[I] Specific functional roles cannot be assigned from structural data alone."
         )

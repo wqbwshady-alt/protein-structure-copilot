@@ -6,3 +6,4 @@ python-dotenv>=1.0
 psycopg[binary]>=3.2
 pytest>=8.0
 requests>=2.31
+rdkit>=2024.03

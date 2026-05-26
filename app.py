@@ -35,6 +35,8 @@ from consurf import extract_pdb_id, map_consurf_to_residues, query_consurf_db
 from flexibility import compute_pocket_flexibility
 from pi_stacking import detect_pi_interactions
 from energy_decomposition import compute_interaction_energy
+from ligand_analysis import analyze_ligand
+from prodigy_client import predict_binding_affinity
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from ai_client import generate_structured_interpretation
@@ -652,6 +654,20 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
                 r["interaction_energy"] = energy_result["per_residue"][key]
     except Exception:
         pass
+
+    # --- RDKit ligand analysis ---
+    ligand_profile = {}
+    try:
+        ligand_profile = analyze_ligand(pdb_path, ligand_name) or {}
+    except Exception:
+        pass
+
+    # --- Prodigy binding affinity prediction ---
+    prodigy_result = {}
+    try:
+        prodigy_result = predict_binding_affinity(pdb_path, ligand_name) or {}
+    except Exception:
+        pass
     # ---
 
     ca = ConfidenceAssessor(contact_residues, interactions, ligand_detected=True)
@@ -675,6 +691,8 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "flexibility": flexibility_result,
         "pi_stacking": pi_stacking_result,
         "interaction_energy": energy_result,
+        "ligand_profile": ligand_profile,
+        "prodigy": prodigy_result,
     })
     ai_report_text = "\n\n".join(
         f"{k}\n{v}" for k, v in ai_sections.items()
@@ -712,6 +730,8 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
             "total_coulomb": energy_result.get("total_coulomb", 0),
             "total_energy": energy_result.get("total_energy", 0),
         } if energy_result else {},
+        "ligand_profile": ligand_profile if ligand_profile else {},
+        "prodigy": prodigy_result if prodigy_result else {},
         "annotation_summary": conservation_annotations.get("_overall", {
             "status": "failed",
             "error": "Annotation pipeline not executed",
