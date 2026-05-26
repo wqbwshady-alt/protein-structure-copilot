@@ -403,6 +403,38 @@
         h += '</div>';
       }
 
+      // SASA card
+      var sasa = data.sasa || {};
+      if (sasa.total_sasa > 0) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F4D0;</span> Solvent Accessibility (SASA)' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            'Pocket total SASA: <strong>' + (sasa.total_sasa || 0).toFixed(0) + ' A²</strong>' +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'Shrake-Rupley algorithm, 1.4A water probe. Values relative to Gly-X-Gly tripeptide reference.' +
+          '</div></div>';
+      }
+
+      // Water bridge card
+      var wb = data.water_bridges || {};
+      if (wb.total > 0) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F4A7;</span> Water-Mediated Contacts' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            'Total bridges: <strong>' + wb.total + '</strong>' +
+            ' &mdash; Water molecules: <strong>' + (wb.water_molecules_involved || 0) + '</strong>' +
+            ' &middot; Residues bridged: <strong>' + (wb.protein_residues_bridged || 0) + '</strong>' +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'Water O within 3.5A of both protein and ligand atoms. Water-mediated H-bonds can contribute significantly to binding affinity.' +
+          '</div></div>';
+      }
+
       // Salt bridge card
       var sb = data.salt_bridges || {};
       if (sb.total > 0) {
