@@ -34,6 +34,7 @@ from conservation import compute_conservation_annotation
 from consurf import extract_pdb_id, map_consurf_to_residues, query_consurf_db
 from flexibility import compute_pocket_flexibility
 from pi_stacking import detect_pi_interactions
+from energy_decomposition import compute_interaction_energy
 from reports import build_comparison_report, build_report, generate_pymol_script
 from reports import build_mutation_scan_report
 from ai_client import generate_structured_interpretation
@@ -637,6 +638,20 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         pi_stacking_result = detect_pi_interactions(contact_residues, all_atoms)
     except Exception:
         pass
+
+    # --- Intermolecular energy decomposition (LJ + Coulomb) ---
+    energy_result = {}
+    try:
+        all_atoms = parse_pdb_atoms(pdb_path)
+        protein_atoms = [a for a in all_atoms if a["atom_type"] == "ATOM"]
+        ligand_atoms = [a for a in all_atoms if a["atom_type"] == "HETATM"]
+        energy_result = compute_interaction_energy(protein_atoms, ligand_atoms)
+        for r in enhanced_residues:
+            key = r.get("residue_key", "")
+            if key in energy_result.get("per_residue", {}):
+                r["interaction_energy"] = energy_result["per_residue"][key]
+    except Exception:
+        pass
     # ---
 
     ca = ConfidenceAssessor(contact_residues, interactions, ligand_detected=True)
@@ -659,6 +674,7 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "limitations": limitations,
         "flexibility": flexibility_result,
         "pi_stacking": pi_stacking_result,
+        "interaction_energy": energy_result,
     })
     ai_report_text = "\n\n".join(
         f"{k}\n{v}" for k, v in ai_sections.items()
@@ -691,6 +707,11 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "recommended_next_steps": next_steps,
         "flexibility": flexibility_result.get("pocket_summary", {}) if flexibility_result else {},
         "pi_stacking": pi_stacking_result if pi_stacking_result else {},
+        "interaction_energy": {
+            "total_vdw": energy_result.get("total_vdw", 0),
+            "total_coulomb": energy_result.get("total_coulomb", 0),
+            "total_energy": energy_result.get("total_energy", 0),
+        } if energy_result else {},
         "annotation_summary": conservation_annotations.get("_overall", {
             "status": "failed",
             "error": "Annotation pipeline not executed",

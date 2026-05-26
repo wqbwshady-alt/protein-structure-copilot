@@ -776,7 +776,44 @@ IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO men
 - Explicitly state when functional/conservation data is MISSING (e.g. "no UniProt annotation available for this residue").
 - Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
 
-CONFIDENCE ASSESSMENT:
+INTERACTION ENERGY DECOMPOSITION (Lennard-Jones 12-6 + Coulomb, distance-dependent dielectric ε=4r):
+"""
+
+        # Build energy decomposition block
+        energy = data.get("interaction_energy", {})
+        if energy and energy.get("per_residue"):
+            data_block += (
+                f"Total interaction energy: vdW={energy.get('total_vdw','?')} "
+                f"kcal/mol, Coulomb={energy.get('total_coulomb','?')} "
+                f"kcal/mol, Total={energy.get('total_energy','?')} kcal/mol\n"
+            )
+            # Sort by total energy (most negative first)
+            energy_entries = sorted(
+                energy["per_residue"].items(),
+                key=lambda x: x[1].get("total", 0)
+            )
+            energy_lines = []
+            for key, e in energy_entries[:10]:
+                if e.get("total", 0) != 0:
+                    energy_lines.append(
+                        f"{key}: vdW={e.get('vdw','?')} "
+                        f"Coulomb={e.get('coulomb','?')} "
+                        f"Total={e.get('total','?')} kcal/mol "
+                        f"({e.get('atom_pairs','?')} atom pairs)"
+                    )
+            if energy_lines:
+                data_block += "\n".join(energy_lines) + "\n"
+            data_block += (
+                "NOTE: These are APPROXIMATE gas-phase interaction energies using "
+                "simplified AMBER-like parameters. They indicate relative per-residue "
+                "contributions — residues with strongly negative total energies are "
+                "likely energetic anchors. Positive values indicate repulsive contacts "
+                "that may reflect steric clashes or parameter limitations. "
+                "In Section C and D, mention which residues are the dominant energetic "
+                "contributors based on these values.\n\n"
+            )
+
+        data_block += f"""CONFIDENCE ASSESSMENT:
 {confidence_line}
 
 LIMITATIONS:

@@ -1020,12 +1020,16 @@ class SafetyGuardrails:
                 ev = r.get("interaction_evidence", [])
                 types = ", ".join(sorted(set(e["type"] for e in ev)))
                 flex_info = r.get("flexibility", {})
+                energy_info = r.get("interaction_energy", {})
                 flex_note = ""
                 if flex_info.get("classification") in ("rigid", "flexible", "highly_flexible"):
                     flex_note = f" [{flex_info['classification']} B={flex_info.get('mean_b','?')}]"
+                energy_note = ""
+                if energy_info.get("total", 0) != 0:
+                    energy_note = f" [E={energy_info['total']:.1f} kcal/mol]"
                 sections.append(
                     f"[S] {r['residue_key']}: {len(ev)} contact(s) at "
-                    f"{r['min_distance']}A — {types}{flex_note}"
+                    f"{r['min_distance']}A — {types}{energy_note}{flex_note}"
                 )
 
             # Pi-stacking mention
@@ -1069,6 +1073,18 @@ class SafetyGuardrails:
             "[I] The structural evidence suggests a binding interface consistent "
             "with geometric pocket-ligand complementarity."
         ]
+
+        # Energy context
+        energy = data.get("interaction_energy", {})
+        if energy and energy.get("total_energy"):
+            interp_parts.append(
+                f"[S] Approximate total interaction energy (LJ+Coulomb): "
+                f"{energy['total_energy']:.1f} kcal/mol "
+                f"(vdW={energy.get('total_vdw',0):.1f}, "
+                f"Coulomb={energy.get('total_coulomb',0):.1f}). "
+                f"These are gas-phase estimates with simplified force field "
+                f"parameters — use for relative ranking only."
+            )
 
         # Flexibility context
         flex = data.get("flexibility", {})

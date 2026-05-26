@@ -377,9 +377,27 @@
         h += '</div>';
       }
 
+      // Energy summary card
+      var eSummary = data.interaction_energy || {};
+      if (eSummary.total_energy !== undefined) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x26A1;</span> Interaction Energy (LJ + Coulomb)' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            'Total: <strong style="color:var(--text-primary);">' + (eSummary.total_energy || 0).toFixed(1) + ' kcal/mol</strong>' +
+            ' &mdash; vdW: ' + (eSummary.total_vdw || 0).toFixed(1) +
+            ', Coulomb: ' + (eSummary.total_coulomb || 0).toFixed(1) +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'Approximate gas-phase energy. Simplied AMBER-like parameters, distance-dependent dielectric (ε=4r). Use for relative ranking.' +
+          '</div>' +
+        '</div>';
+      }
+
       h += '<div class="ranking-scroll"><div class="ranking-table">';
       h += '<div class="ranking-header">' +
-        '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Flex</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
+        '<span>Rank</span><span>Residue</span><span>Score</span><span>Dist</span><span>Energy</span><span>Flex</span><span>Enrich</span><span>Conserv</span><span>UniProt</span>' +
       '</div>';
       data.important_residues.slice(0, 10).forEach(function (r) {
         var confClass = 'conf-' + (r.residue_confidence || 'low');
@@ -400,6 +418,18 @@
             enrichHTML = '<span class="rk-enrich ' + enrichClass + '" title="' + enrichTitle + '">' +
               (fold >= 1 ? '+' : '') + fold.toFixed(1) + 'x</span>';
           }
+        }
+
+        // Energy
+        var energy = r.interaction_energy || {};
+        var energyHTML = '';
+        if (energy.total !== undefined && energy.total !== 0) {
+          var eClass = energy.total < -2 ? 'energy-strong' : energy.total < -0.5 ? 'energy-mod' : 'energy-weak';
+          var eTitle = 'vdW: ' + (energy.vdw||0) + ' + Coulomb: ' + (energy.coulomb||0) + ' kcal/mol';
+          energyHTML = '<span class="rk-energy ' + eClass + '" title="' + eTitle + '">' +
+            (energy.total > 0 ? '+' : '') + energy.total.toFixed(1) + '</span>';
+        } else {
+          energyHTML = '<span class="rk-energy energy-none">—</span>';
         }
 
         // Flexibility
@@ -478,6 +508,7 @@
           '<span class="rk-residue">' + (r.residue_key || '') + '</span>' +
           '<span class="rk-score">' + (r.score || 0).toFixed(2) + '</span>' +
           '<span class="rk-dist">' + (r.min_distance || '?') + 'A</span>' +
+          energyHTML +
           flexHTML +
           enrichHTML +
           consHTML +
