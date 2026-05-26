@@ -534,7 +534,10 @@
           var consScore = cons.score;
           var consClass = consAvailable ? 'cons-real' : 'cons-proxy';
           var consLabel = '';
-          if (consSource === 'consurf_db') {
+          if (consSource === 'uniprot_variant_constraint') {
+            consLabel = '[V]';
+            consClass = 'cons-real cons-variant';
+          } else if (consSource === 'consurf_db') {
             consLabel = '[C]';
             consClass = 'cons-real cons-consurf';
           } else if (consSource === 'blosum62_proxy') {
@@ -578,7 +581,11 @@
         } else if (annoStatus === 'failed') {
           evTags.push('<span class="ev-tag functional-failed">[F] UniProt failed</span>');
         }
-        if (ev.conservation) evTags.push('<span class="ev-tag conservation">[C] True conservation</span>');
+        if (ev.conservation) {
+          var consSrc = cons.source || '';
+          var consTagLabel = consSrc === 'uniprot_variant_constraint' ? '[V] Functional constraint' : '[C] True conservation';
+          evTags.push('<span class="ev-tag conservation">' + consTagLabel + '</span>');
+        }
         if (ev.proxy_only) evTags.push('<span class="ev-tag proxy">[P] Substitution proxy</span>');
         if (evTags.length) whyParts.push('<span class="ev-tags">' + evTags.join(' ') + '</span>');
         if (lims.length > 0) {

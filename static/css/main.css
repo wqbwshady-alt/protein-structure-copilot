@@ -1569,6 +1569,11 @@ body::before {
   background: rgba(59,130,246,0.12);
   color: #3b82f6;
 }
+.rk-cons.cons-variant {
+  background: rgba(16,185,129,0.15);
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,0.3);
+}
 .rk-cons.cons-consurf {
   background: rgba(139,92,246,0.15);
   color: #8b5cf6;

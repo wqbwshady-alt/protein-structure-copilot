@@ -802,7 +802,10 @@ def build_structured_prompt(mode, data):
 
             parts = [f"{residue_key}:"]
 
-            if cons.get("available") and cons.get("source") == "consurf_db":
+            if cons.get("available") and cons.get("source") == "uniprot_variant_constraint":
+                parts.append(f"functional_constraint={cons.get('score', '?')} (UniProt natural variant density — high score = few variants = constrained)")
+                parts.append(f"conservation_source={cons.get('source', '?')}")
+            elif cons.get("available") and cons.get("source") == "consurf_db":
                 parts.append(f"ConSurf_conservation_score={cons.get('score', '?')} (TRUE evolutionary conservation, MSA-based)")
                 parts.append(f"conservation_source={cons.get('source', '?')}")
             elif cons.get("available"):

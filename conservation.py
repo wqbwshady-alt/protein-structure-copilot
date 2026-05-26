@@ -526,6 +526,11 @@ def compute_conservation_annotation(contact_residues, pdb_path, consurf_scores=N
         if feat is not None:
             accession_features[accession] = feat
 
+    # Step 3b: Compute variant-based functional constraint scores
+    variant_constraint = {}
+    for accession, features in accession_features.items():
+        variant_constraint[accession] = _compute_variant_constraint(features)
+
     # Step 4: Build per-residue annotations
     result = {}
     status_counts = {s: 0 for s in ANNOTATION_STATUS}
@@ -533,7 +538,8 @@ def compute_conservation_annotation(contact_residues, pdb_path, consurf_scores=N
         key = f"{chain_id}:{res_name}{res_id}"
         cs = consurf_scores.get(key) if consurf_scores else None
         result[key] = _build_residue_annotation(
-            res_name, key, residue_mapping, accession_features, consurf_entry=cs
+            res_name, key, residue_mapping, accession_features,
+            variant_constraint, consurf_entry=cs
         )
         st = result[key].get("annotation_status", "failed")
         status_counts[st] = status_counts.get(st, 0) + 1
@@ -544,6 +550,40 @@ def compute_conservation_annotation(contact_residues, pdb_path, consurf_scores=N
     )
 
     return result
+
+
+def _compute_variant_constraint(accession_features):
+    """Compute functional constraint from UniProt natural variant density.
+
+    Positions with many natural variants = low evolutionary constraint.
+    Positions with few/no variants = high constraint / conserved.
+
+    Score normalized to [0, 1] where 1 = maximally constrained (no variants).
+    """
+    if not accession_features:
+        return {}
+
+    # Count variants per position
+    variant_counts = {}
+    for pos, feats in accession_features.items():
+        count = sum(1 for f in feats if f.get("type") == "Natural variant")
+        variant_counts[pos] = count
+
+    if not variant_counts:
+        return {}
+
+    max_count = max(variant_counts.values())
+    if max_count == 0:
+        return {pos: 1.0 for pos in variant_counts}
+
+    # Normalize: 0 variants → 1.0, max variants → 0.0
+    # Use sqrt scaling to compress the range (most positions have 0-10 variants)
+    constraint = {}
+    for pos, count in variant_counts.items():
+        score = max(0.0, 1.0 - math.sqrt(count / max_count))
+        constraint[pos] = round(score, 4)
+
+    return constraint
 
 
 def _build_overall_summary(status_counts, accessions_to_fetch, accession_features,
@@ -685,12 +725,14 @@ def _no_data_fallback(res_name, consurf_entry=None):
     }
 
 
-def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_features, consurf_entry=None):
-    """Build annotation for one residue, combining ConSurf/UniProt + BLOSUM62 fallback.
+def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_features,
+                              variant_constraint=None, consurf_entry=None):
+    """Build annotation for one residue.
 
-    Priority:
-    1. ConSurf-DB → true evolutionary conservation
-    2. BLOSUM62 → substitution tolerance proxy (fallback)
+    Conservation priority:
+    1. UniProt variant constraint → functional constraint from natural variant density
+    2. ConSurf-DB → true evolutionary conservation (if available)
+    3. BLOSUM62 → substitution tolerance proxy (fallback)
     """
     blosum = blosum62_proxy_score(res_name)
     limitations = [
@@ -698,8 +740,31 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
         "Simplified LJ+Coulomb energy scoring used (qualitative ranking only, not validated binding affinity)",
     ]
 
-    # --- Conservation: ConSurf-DB first, BLOSUM62 fallback ---
-    if consurf_entry:
+    # --- Conservation: UniProt variant constraint → ConSurf-DB → BLOSUM62 ---
+    variant_score = None
+    if residue_key in residue_mapping and variant_constraint:
+        accession = residue_mapping[residue_key][0]
+        uniprot_pos = residue_mapping[residue_key][1]
+        if accession in variant_constraint:
+            variant_score = variant_constraint[accession].get(uniprot_pos)
+
+    if variant_score is not None:
+        conservation_data = {
+            "score": variant_score,
+            "available": True,
+            "source": "uniprot_variant_constraint",
+            "source_detail": (
+                f"Functional constraint score {variant_score} — derived from "
+                "UniProt natural variant density. High score = few variants "
+                "= likely functional constraint. More informative than "
+                "BLOSUM62 alone but less rigorous than MSA-based conservation."
+            ),
+        }
+        cons_tags = {
+            "conservation": True,
+            "proxy_only": False,
+        }
+    elif consurf_entry:
         consurf_color = consurf_entry.get("color")
         consurf_raw = consurf_entry.get("score")
         if consurf_color is not None:
@@ -735,7 +800,7 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
             "source": "blosum62_proxy",
             "source_detail": (
                 "BLOSUM62 self-substitution score — substitution tolerance proxy. "
-                "No evolutionary conservation data available."
+                "No variant or conservation data available."
             ),
         }
         cons_tags = {
@@ -743,7 +808,7 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
             "proxy_only": True,
         }
         limitations.append(
-            "No true evolutionary conservation data available — using BLOSUM62 substitution proxy"
+            "No variant constraint or conservation data — using BLOSUM62 substitution proxy"
         )
 
     # --- Functional annotations from UniProt ---
