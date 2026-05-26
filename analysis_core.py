@@ -687,7 +687,7 @@ def merge_enhancement(ranked_residues, enrichment, conservation_annotations):
                 "score": 0.5,
                 "available": False,
                 "source": "blosum62_proxy",
-                "source_detail": "BLOSUM62 self-substitution proxy. No conservation data available.",
+                "source_detail": "BLOSUM62 self-substitution score (substitution-tolerance proxy, not evolutionary conservation).",
             }
             entry["functional_annotations"] = {
                 "available": False,
@@ -703,9 +703,9 @@ def merge_enhancement(ranked_residues, enrichment, conservation_annotations):
                 "proxy_only": True,
             }
             entry["residue_limitations"] = [
-                "No conservation evidence available",
-                "No functional annotation available",
-                "No experimental validation of binding contribution",
+                "Approximate interaction energy (LJ+Coulomb, qualitative ranking)",
+                "No experimental binding validation",
+                "No MD simulation or explicit solvent modeling",
             ]
 
         enhanced.append(entry)
@@ -853,27 +853,43 @@ class LimitationsBuilder:
     def build(self, mode="ligand", ligand_ambiguous=False):
         base = {
             "static_structure_only": True,
-            "no_energetic_validation": True,
-            "no_dynamics": True,
-            "no_hydrogens": True,
-            "no_solvent_modeling": True,
-            "no_conservation_analysis": True,
-            "no_mutation_validation": True,
-            "no_docking": True,
+            "no_md_simulation": True,
+            "no_explicit_solvent": True,
+            "no_protonation_optimization": True,
+            "approximate_energy_scoring": True,
+            "no_experimental_validation": True,
+            "no_docking_rescoring": True,
             "distance_cutoff_5A": True,
-            "interaction_classification_geometric_only": True,
+            "b_factor_as_flexibility_proxy": True,
+            "pi_stacking_geometric_only": True,
+            "blosum62_substitution_proxy": True,
             "ligand_ambiguous": ligand_ambiguous,
             "disclaimer": (
-                "This analysis is based on geometric distance criteria from a "
-                "single static PDB structure. It does not constitute a validated "
-                "energetic prediction. For quantitative binding assessment, "
-                "MD simulation, MM-GBSA, ITC, or SPR experiments are recommended."
+                "This analysis is based on a single static PDB structure and does "
+                "not include molecular dynamics simulations, explicit solvent effects, "
+                "protonation-state optimization, or experimental binding affinity "
+                "measurements. The interaction energy module uses simplified "
+                "Lennard-Jones and Coulomb terms to estimate relative ligand-residue "
+                "interaction strength, and should be interpreted as a qualitative "
+                "ranking score rather than a validated binding free-energy prediction. "
+                "B-factors are used as a proxy for local flexibility but do not fully "
+                "capture dynamic conformational changes. Pi-stacking detection is "
+                "based on geometric criteria and is not independently validated by "
+                "quantum or molecular mechanics calculations. Functional annotations "
+                "are derived from UniProt mapping and BLOSUM62 proxy scores, which "
+                "provide substitution-tolerance information but are not equivalent to "
+                "experimentally measured conservation or mutation effects. Therefore, "
+                "this report should be considered a structure-based hypothesis "
+                "generation tool. For quantitative binding assessment, MD simulations, "
+                "MM-GBSA/FEP calculations, ITC, SPR, or mutagenesis experiments "
+                "are recommended."
             ),
         }
         if mode == "mutation":
             base["disclaimer"] += (
-                " Mutation impact predictions are heuristic estimates, "
-                "not validated ΔΔG calculations. Sidechain remodeling, "
+                " Mutation impact predictions are heuristic estimates based on "
+                "physicochemical property comparison and geometric interaction "
+                "patterns — not validated ΔΔG calculations. Sidechain remodeling, "
                 "backbone rearrangement, and solvent reorganization are not modeled."
             )
         if mode == "comparison":
@@ -920,9 +936,12 @@ EVIDENCE_TAG_RULES = {
 }
 
 MANDATORY_DISCLAIMER = (
-    "[E] This is a structural hypothesis based on geometric distance criteria "
-    "from a single static PDB structure. It is not a validated energetic or "
-    "functional prediction."
+    "[E] This is a structural hypothesis based on a single static PDB structure "
+    "with simplified interaction energy scoring (LJ + Coulomb, qualitative ranking). "
+    "It does not include MD simulations, explicit solvent, or experimental "
+    "validation, and should not be interpreted as a binding affinity prediction. "
+    "For quantitative assessment, MD, MM-GBSA/FEP, ITC, SPR, or mutagenesis "
+    "experiments are recommended."
 )
 
 
@@ -998,23 +1017,47 @@ class SafetyGuardrails:
         sections.append("## A. Executive Summary")
         if ranked:
             top = ranked[0]
+            energy = data.get("interaction_energy", {})
+            flex = data.get("flexibility", {})
+            ps = flex.get("pocket_summary", {}) if flex else {}
+
             sections.append(
                 f"[S] {top['residue_key']} ranks #1 (score {top['score']:.2f}) "
                 f"with {top['contact_count']} contact(s) at minimum {top['min_distance']}A."
             )
-            sections.append(
-                f"[I] The pocket contains {len(data.get('important_residues',[]))} "
+            status_parts = [
+                f"The pocket contains {len(data.get('important_residues',[]))} "
                 f"ranked residues with {conf.get('overall_analysis_confidence','unknown')} "
                 f"overall confidence."
+            ]
+            if energy.get("total_energy"):
+                status_parts.append(
+                    f"Approximate total interaction energy: {energy['total_energy']:.1f} kcal/mol "
+                    f"(simplified LJ+Coulomb, qualitative ranking only)."
+                )
+            if ps.get("classification") and ps["classification"] != "no_data":
+                status_parts.append(
+                    f"Pocket flexibility: {ps.get('label','')} "
+                    f"(B-factor ratio {ps.get('flexibility_ratio','?')}x)."
+                )
+            sections.append("[I] " + " ".join(status_parts))
+            sections.append(
+                "[I] This is a structure-based hypothesis, not an experimental validation. "
+                "All interpretations below should be treated as qualitative analysis."
             )
         else:
             sections.append("[S] No ranked residues available for this analysis.")
 
-        sections.append("## B. Pocket Profile")
-        sections.append("[S] Pocket residue composition and interaction types "
-                        "are based on geometric classification from PDB coordinates.")
+        sections.append("## B. Pocket Physicochemical Profile")
+        sections.append(
+            "[S] Pocket residue composition and interaction types are classified "
+            "from PDB coordinates. B-factor flexibility analysis compares pocket "
+            "to whole-protein thermal displacement. Where ligand profiling data "
+            "is available (MW, LogP, TPSA, HBD/HBA, drug-likeness), these inform "
+            "the assessment of pocket-ligand complementarity."
+        )
 
-        sections.append("## C. Key Interactions")
+        sections.append("## C. Key Interaction Network")
         if ranked:
             for r in ranked[:3]:
                 ev = r.get("interaction_evidence", [])
@@ -1026,7 +1069,7 @@ class SafetyGuardrails:
                     flex_note = f" [{flex_info['classification']} B={flex_info.get('mean_b','?')}]"
                 energy_note = ""
                 if energy_info.get("total", 0) != 0:
-                    energy_note = f" [E={energy_info['total']:.1f} kcal/mol]"
+                    energy_note = f" [approx E={energy_info['total']:.1f} kcal/mol]"
                 sections.append(
                     f"[S] {r['residue_key']}: {len(ev)} contact(s) at "
                     f"{r['min_distance']}A — {types}{energy_note}{flex_note}"
@@ -1049,41 +1092,73 @@ class SafetyGuardrails:
                     )
         else:
             sections.append("[S] Insufficient structural evidence — no close "
-                            "contacts detected within 4.0A cutoff.")
+                            "contacts detected within cutoff.")
 
-        sections.append("## D. Residue-Level Evidence")
+        sections.append("## D. Energetic Interpretation")
+        if ranked:
+            energy = data.get("interaction_energy", {})
+            if energy and energy.get("per_residue"):
+                sections.append(
+                    f"[S] Total approximate interaction energy: "
+                    f"{energy.get('total_energy',0):.1f} kcal/mol "
+                    f"(vdW={energy.get('total_vdw',0):.1f}, "
+                    f"Coulomb={energy.get('total_coulomb',0):.1f}). "
+                    f"These simplified LJ+Coulomb scores are intended for "
+                    f"qualitative per-residue ranking — NOT validated binding "
+                    f"free energies or ΔG predictions."
+                )
+                for r in ranked[:5]:
+                    e = r.get("interaction_energy", {})
+                    if e.get("total", 0) != 0:
+                        sections.append(
+                            f"- [S] {r['residue_key']}: approx "
+                            f"{'%.1f' % e['total']} kcal/mol "
+                            f"(vdW={'%.1f' % e.get('vdw',0)}, "
+                            f"Coulomb={'%.1f' % e.get('coulomb',0)})"
+                        )
+            else:
+                sections.append(
+                    "[S] Residue-level energy data not available for this analysis."
+                )
+        else:
+            sections.append("[S] No interaction energy data within cutoff.")
+
+        sections.append("## E. Functional and Evolutionary Context")
+        func_available = False
         if ranked:
             for r in ranked[:5]:
-                sections.append(f"- [S] {r['residue_key']}: score {r['score']:.2f}, "
-                                f"min distance {r['min_distance']}A, "
-                                f"{r['contact_count']} contact(s)")
-        else:
-            sections.append("[S] No residue-level interaction data within cutoff distance.")
-
-        sections.append("## E. Mutation Impact Assessment")
-        if mode == "mutation":
-            sections.append("[H] Mutation impact is a heuristic estimate based on "
-                            "physicochemical property comparison and geometric interaction "
-                            "patterns. Confidence: LOW — no energetic validation performed.")
-        else:
-            sections.append("[S] N/A — single-structure analysis. No mutation data provided.")
+                func = r.get("functional_annotations", {})
+                if func.get("available") and func.get("features"):
+                    func_available = True
+                    feats = func["features"][:2]
+                    feat_strs = [f"{f['type']}({f.get('description','')[:50]})" for f in feats]
+                    sections.append(
+                        f"[S] {r['residue_key']}: UniProt — {', '.join(feat_strs)} "
+                        f"(mapping confidence: {func.get('mapping_confidence','?')})"
+                    )
+        if not func_available:
+            sections.append(
+                "[S] No UniProt functional annotations available for these "
+                "contact residues. BLOSUM62 scores (shown where available) "
+                "are substitution-tolerance proxies, not evolutionary "
+                "conservation measurements."
+            )
 
         sections.append("## F. Biological Interpretation")
         interp_parts = [
             "[I] The structural evidence suggests a binding interface consistent "
-            "with geometric pocket-ligand complementarity."
+            "with pocket-ligand complementarity across multiple interaction types."
         ]
 
         # Energy context
         energy = data.get("interaction_energy", {})
         if energy and energy.get("total_energy"):
             interp_parts.append(
-                f"[S] Approximate total interaction energy (LJ+Coulomb): "
-                f"{energy['total_energy']:.1f} kcal/mol "
-                f"(vdW={energy.get('total_vdw',0):.1f}, "
+                f"[S] Approximate interaction energy: "
+                f"{energy['total_energy']:.1f} kcal/mol (vdW={energy.get('total_vdw',0):.1f}, "
                 f"Coulomb={energy.get('total_coulomb',0):.1f}). "
-                f"These are gas-phase estimates with simplified force field "
-                f"parameters — use for relative ranking only."
+                f"These simplified LJ+Coulomb scores provide qualitative ranking "
+                f"of per-residue contributions — not binding free energies."
             )
 
         # Flexibility context
@@ -1106,7 +1181,7 @@ class SafetyGuardrails:
             else:
                 interp_parts.append(
                     f"[S] Pocket flexibility is within normal range "
-                    f"(B-factor ratio {ratio}x), typical of crystalline binding sites."
+                    f"(B-factor ratio {ratio}x)."
                 )
 
         # Pi-stacking context
@@ -1115,40 +1190,36 @@ class SafetyGuardrails:
             pi_pi = pi_data.get("pi_pi_interactions", [])
             if pi_pi:
                 interp_parts.append(
-                    f"[S] {len(pi_pi)} pi-pi interaction(s) detected among pocket "
-                    f"aromatic residues. These may provide additional stabilization "
-                    f"for aromatic ligand moieties through stacking geometry."
+                    f"[S] {len(pi_pi)} pi-pi interaction(s) detected. "
+                    f"These may stabilize aromatic ligand moieties through "
+                    f"stacking geometry."
                 )
 
         # Ligand profile context
         lp = data.get("ligand_profile", {})
         if lp:
             interp_parts.append(
-                f"[S] Ligand profile: MW={lp.get('mw','?')} Da, "
+                f"[S] Ligand: MW={lp.get('mw','?')} Da, "
                 f"LogP={lp.get('logp','?')}, TPSA={lp.get('tpsa','?')} A^2, "
                 f"HBD={lp.get('hbd','?')}/HBA={lp.get('hba','?')}, "
-                f"rotatable bonds={lp.get('rotatable_bonds','?')}, "
-                f"{lp.get('aromatic_rings','?')} aromatic ring(s). "
-                f"Drug-likeness: {lp.get('drug_likeness','?')} "
-                f"(Ro5: {lp.get('ro5_violations','?')} violations)."
+                f"{lp.get('rotatable_bonds','?')} rotatable bonds, "
+                f"{lp.get('aromatic_rings','?')} aromatic rings. "
+                f"Drug-likeness: {lp.get('drug_likeness','?')}."
             )
-            if lp.get("mmff_strain_energy") is not None:
-                interp_parts.append(
-                    f"[S] MMFF94 strain energy: {lp['mmff_strain_energy']:.1f} kcal/mol "
-                    f"(bound conformer energy penalty)."
-                )
 
         # Prodigy context
         prodigy = data.get("prodigy", {})
         if prodigy.get("delta_g") or prodigy.get("kd"):
             interp_parts.append(
-                f"[I] Prodigy predicts: ΔG={prodigy.get('delta_g','?')} kcal/mol, "
-                f"Kd={prodigy.get('kd','?')}. These are statistical predictions "
-                f"— not experimental measurements."
+                f"[I] Prodigy statistical prediction: "
+                f"ΔG≈{prodigy.get('delta_g','?')} kcal/mol, "
+                f"Kd≈{prodigy.get('kd','?')}. "
+                f"Not experimentally validated."
             )
 
         interp_parts.append(
-            "[I] Specific functional roles cannot be assigned from structural data alone."
+            "[I] Specific functional roles require experimental validation. "
+            "This interpretation is a structure-based hypothesis."
         )
         sections.append(" ".join(interp_parts))
 
@@ -1173,8 +1244,10 @@ class SafetyGuardrails:
                 "mutagenesis or site-directed mutagenesis experiments."
             )
         steps.append(
-            "Run MM-GBSA or MM-PBSA to estimate per-residue binding "
-            "free energy contributions (currently distance-based only)."
+            "Run MM-GBSA or MM-PBSA to obtain per-residue binding "
+            "free energy decomposition with explicit solvent and "
+            "proper statistical mechanics, for comparison with the "
+            "simplified LJ+Coulomb ranking presented here."
         )
         if conf and conf.get("data_quality_flags", {}).get("has_multiple_evidence_types"):
             steps.append(

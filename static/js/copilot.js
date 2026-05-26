@@ -583,7 +583,7 @@
         '<div class="section-body">' +
         '<p>' + (data.limitations.disclaimer || '') + '</p>' +
         '<p style="margin-top:8px;font-size:11px;color:var(--text-muted);">' +
-        'Key flags: static structure analysis, no energetic validation, no MD simulation, geometric classification only.' +
+        'Key flags: single static PDB structure, simplified LJ+Coulomb energy scoring (qualitative ranking), no MD simulation, no experimental binding validation.' +
         '</p></div></details>';
     }
 

@@ -605,7 +605,7 @@ def _no_data_fallback(res_name, consurf_entry=None):
         mapping_conf = consurf_entry.get("confidence", "low")
         limitations = [
             "No experimental validation of binding contribution",
-            "No energetic calculation (distance-based geometric classification only)",
+            "Interaction energy uses simplified LJ+Coulomb (qualitative ranking, not validated binding affinity)",
             f"ConSurf-DB mapping confidence: {mapping_conf}"
             if mapping_conf != "high"
             else "ConSurf-DB conservation data available",
@@ -615,7 +615,7 @@ def _no_data_fallback(res_name, consurf_entry=None):
         if mapping_conf == "high":
             limitations = [
                 "No experimental validation of binding contribution",
-                "No energetic calculation (distance-based geometric classification only)",
+                "Simplified LJ+Coulomb energy scoring used (qualitative ranking only, not validated binding affinity)",
                 "No UniProt functional annotation available (no DBREF mapping or API data)",
                 "Mapping confidence: low (no PDB-to-UniProt mapping)",
             ]
@@ -677,7 +677,7 @@ def _no_data_fallback(res_name, consurf_entry=None):
         "annotation_status": "no_mapping",
         "limitations": [
             "No experimental validation of binding contribution",
-            "No energetic calculation (distance-based geometric classification only)",
+            "Interaction energy uses simplified LJ+Coulomb (qualitative ranking, not validated binding affinity)",
             "Conservation evidence unavailable — using BLOSUM62 substitution proxy",
             "No UniProt functional annotation available (no DBREF mapping or API data)",
             "Mapping confidence: low (no PDB-to-UniProt mapping)",
@@ -695,7 +695,7 @@ def _build_residue_annotation(res_name, residue_key, residue_mapping, accession_
     blosum = blosum62_proxy_score(res_name)
     limitations = [
         "No experimental validation of binding contribution",
-        "No energetic calculation (distance-based geometric classification only)",
+        "Simplified LJ+Coulomb energy scoring used (qualitative ranking only, not validated binding affinity)",
     ]
 
     # --- Conservation: ConSurf-DB first, BLOSUM62 fallback ---

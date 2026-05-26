@@ -606,39 +606,113 @@ def generate_protein_only_interpretation(summary):
 
 SYSTEM_PROMPT = (
     "You are a structural biology research assistant. "
-    "Your role is evidence-based interpretation of pre-computed structural data. "
+    "Your role is evidence-based interpretation of pre-computed structural data from "
+    "a multi-dimensional binding-site analysis platform. "
     "You write in the style of a scientific research report: concise, cautious, professional. "
     "Every claim must be traceable to specific structural evidence: residue name, chain ID, "
-    "distance (A), and interaction type. "
+    "distance (A), interaction type, and energy contribution where provided. "
     "When evidence is absent, you explicitly state: 'Insufficient structural evidence to determine this.' "
     "You NEVER invent: numeric binding affinities (Kd, Ki, IC50, ΔG), disease mechanisms, "
-    "drug names, therapeutic claims, or literature references not provided in the data."
+    "drug names, therapeutic claims, or literature references not provided in the data. "
+    "The platform provides approximate interaction energies (simplified LJ + Coulomb) — "
+    "you describe these as qualitative ranking scores, not validated binding free energies."
 )
 
 _STRUCTURED_SECTIONS = [
-    ("A. Executive Summary", "2-3 sentence overview: top-ranked residues, dominant interaction modes, overall confidence level, flexibility and aromatic interaction highlights if available"),
-    ("B. Pocket Physicochemical Profile", "hydrophobic/polar/charged residue composition, what the chemical environment implies for ligand binding. Include B-factor flexibility context if provided"),
-    ("C. Key Interaction Network", "which residues are likely key anchors (cite their scores and distances), which interaction types dominate. Include any detected pi-stacking or cation-pi interactions with their geometric details"),
-    ("D. Residue-Level Evidence", "for each of the top 5 ranked residues, state: chain ID, residue name+number, score, min distance (A), interaction types, flexibility classification. Use the IMPORTANT RESIDUES data provided below — do not fabricate scores or distances"),
-    ("E. Mutation Impact Assessment", "if mutation data present: state confidence level with reasoning based on provided data; if no mutation data: explicitly state N/A"),
-    ("F. Biological Interpretation", "what the pocket architecture suggests about binding mode; discuss flexibility implications for induced fit or rigid docking; discuss aromatic interactions; use cautious language: suggests/may indicate/is consistent with; cite specific residue evidence"),
-    ("G. Limitations", "list limitations based on the LIMITATIONS data provided: static structure, no energetics, no dynamics, geometric classification only, B-factor as flexibility proxy, pi-stacking is purely geometric"),
+    ("A. Executive Summary",
+     "2-3 sentence overview: key hotspot residues, dominant interaction types, "
+     "pocket chemical character, energy trends, B-factor flexibility highlights, "
+     "aromatic interaction findings, and overall confidence level. "
+     "Emphasize this is structure-based hypothesis generation, not experimental validation."),
+
+    ("B. Pocket Physicochemical Profile",
+     "Composition analysis: hydrophobic vs polar vs charged vs aromatic residues "
+     "in the binding pocket. If ligand profile data is provided (MW, LogP, TPSA, "
+     "HBD/HBA, rotatable bonds, ring count, drug-likeness), interpret these in "
+     "the context of pocket complementarity. Include B-factor flexibility context: "
+     "is the pocket rigid (pre-organized) or flexible (potential induced fit)?"),
+
+    ("C. Key Interaction Network",
+     "Identify key anchor residues based on hotspot score, interaction type, "
+     "distance, contact frequency, and approximate interaction energy. "
+     "Categorize contacts as electrostatic (salt bridges, H-bonds), hydrophobic "
+     "packing, aromatic (pi-stacking, cation-pi), or van der Waals. "
+     "Include detected pi-stacking and cation-pi geometry (distance, angle) "
+     "when available. Note which residues are the dominant energetic contributors."),
+
+    ("D. Residue-Level Evidence",
+     "For each of the top 5 ranked residues, state: chain ID, residue name+number, "
+     "hotspot score, minimum distance (A), interaction types, flexibility "
+     "classification (rigid/normal/flexible), approximate interaction energy "
+     "(LJ+Coulomb, kcal/mol), and available UniProt functional annotations. "
+     "Use the IMPORTANT RESIDUES data provided below — do not fabricate scores or distances. "
+     "When BLOSUM62 proxy is present, describe it as substitution-tolerance information, "
+     "not evolutionary conservation."),
+
+    ("E. Mutation / Mechanistic Hypothesis",
+     "Based on contact type, hotspot score, approximate energy contribution, "
+     "UniProt annotation, and BLOSUM62 substitution tolerance, propose which "
+     "residues may influence ligand recognition, binding stability, or specificity. "
+     "If mutation data is provided: assess likely impact with explicit confidence "
+     "reasoning. If no mutation data: suggest residues that would be informative "
+     "to test by mutagenesis, using cautious language (may, could, potentially). "
+     "Do NOT claim that a mutation WILL have a specific effect without experimental data."),
+
+    ("F. Biological Interpretation",
+     "Synthesize pocket architecture, interaction network, energy trends, "
+     "flexibility profile, and ligand properties into a coherent binding model. "
+     "Discuss whether the pocket appears pre-organized for rigid docking or "
+     "shows flexibility signatures consistent with induced fit. "
+     "Discuss aromatic interactions and their potential role in stabilizing "
+     "the binding pose. Suggest what the chemical and energetic profile implies "
+     "about ligand recognition. Use cautious language throughout: suggests, "
+     "may indicate, is consistent with, potentially. Cite specific residue evidence."),
+
+    ("G. Limitations",
+     "List the key limitations of this analysis based on the LIMITATIONS data "
+     "provided. The analysis uses a single static PDB structure without MD "
+     "simulations, explicit solvent, or protonation-state optimization. "
+     "Interaction energies are approximate (simplified LJ + Coulomb) for "
+     "qualitative residue ranking — NOT validated binding free energies or ΔG "
+     "predictions. B-factors are a flexibility proxy, not full conformational "
+     "ensembles. Pi-stacking is geometric only. UniProt annotations and BLOSUM62 "
+     "provide functional context but not experimental validation. "
+     "End with: 'This report is a structure-based hypothesis generation tool. "
+     "For quantitative assessment, MD simulations, MM-GBSA/FEP, ITC, SPR, or "
+     "mutagenesis experiments are recommended.'"),
 ]
 
 _STRUCTURED_RULES = (
     "CRITICAL RULES — every response must follow these:\n"
-    "1. Every factual claim MUST cite: residue name, chain ID, distance (A), interaction type FROM THE PROVIDED DATA\n"
-    "2. If structural data cannot support a claim, write exactly: Insufficient structural evidence to determine this.\n"
-    "3. NEVER state numeric binding affinity (Kd, Ki, IC50, ΔG) or binding energy values\n"
-    "4. NEVER mention: specific protein function, disease mechanism, known drug names, literature references\n"
-    "5. Use cautious language: suggests, may indicate, is consistent with, possibly, potentially, appears to\n"
-    "6. For Section E: use the confidence level and reasoning FROM THE PROVIDED DATA\n"
-    "7. Each section: 2-5 sentences, concise and substantive\n"
-    "8. Use correct structural biology terminology: salt bridge, pi-stacking, H-bond network, hydrophobic core, van der Waals packing, B-factor, induced fit\n"
-    "9. For Section D: USE THE IMPORTANT RESIDUES DATA below. Do not invent residue names or scores.\n"
-    "10. When B-factor and pi-stacking data are provided: incorporate them. Rigid residues (low B-factor) suggest stable anchors. Flexible residues may allow induced fit. Pi-pi interactions stabilize aromatic ligand binding.\n"
-    "11. End Section G with the disclaimer: 'This is a structural hypothesis based on geometric distance criteria from a static PDB structure. It does not constitute a validated energetic prediction.'\n"
-    "12. Total response under 500 words"
+    "1. Every factual claim MUST cite: residue name, chain ID, distance (A), "
+    "interaction type FROM THE PROVIDED DATA\n"
+    "2. If structural data cannot support a claim, write exactly: "
+    "Insufficient structural evidence to determine this.\n"
+    "3. NEVER state numeric binding affinity (Kd, Ki, IC50, ΔG) as fact. "
+    "If Prodigy prediction data is provided, explicitly label it as 'predicted' "
+    "and cite the source.\n"
+    "4. NEVER mention: specific protein function, disease mechanism, known "
+    "drug names, literature references not provided in the data\n"
+    "5. Use cautious language: suggests, may indicate, is consistent with, "
+    "possibly, potentially, appears to\n"
+    "6. Describe interaction energies as 'approximate', 'simplified LJ+Coulomb', "
+    "'qualitative ranking score' — NEVER as validated binding affinity or ΔG\n"
+    "7. Each section: 3-6 sentences, concise and substantive\n"
+    "8. Use correct structural biology terminology: salt bridge, pi-stacking, "
+    "H-bond network, hydrophobic core, van der Waals packing, B-factor, "
+    "induced fit, ligand efficiency\n"
+    "9. For Section D: USE THE IMPORTANT RESIDUES DATA below. Do not invent "
+    "residue names, scores, or energy values.\n"
+    "10. Incorporate all available data dimensions: flexibility (B-factor ratio, "
+    "rigid/flexible classification), energy (LJ+Coulomb per residue), "
+    "pi-stacking (distance + angle), ligand profile (MW, LogP, TPSA, Ro5), "
+    "and UniProt annotations when present.\n"
+    "11. BLOSUM62 scores describe substitution tolerance — distinguish them "
+    "clearly from true evolutionary conservation.\n"
+    "12. End Section G with: 'This report is a structure-based hypothesis "
+    "generation tool. For quantitative assessment, MD simulations, MM-GBSA/FEP, "
+    "ITC, SPR, or mutagenesis experiments are recommended.'\n"
+    "13. Total response under 600 words"
 )
 
 
@@ -746,6 +820,16 @@ def build_structured_prompt(mode, data):
             else:
                 parts.append("UniProt: no functional annotation")
 
+            # Add energy data
+            energy = r.get("interaction_energy", {})
+            if energy and energy.get("total", 0) != 0:
+                parts.append(f"energy(LJ+Coul)={energy.get('total','?'):.1f} kcal/mol (approximate, qualitative ranking only)")
+
+            # Add flexibility data
+            flex = r.get("flexibility", {})
+            if flex and flex.get("classification") not in (None, "normal", "unknown"):
+                parts.append(f"flexibility={flex.get('classification','?')} (B={flex.get('mean_b','?')})")
+
             parts.append(f"evidence: structural={ev.get('structural',True)}, "
                         f"functional={ev.get('functional',False)}, "
                         f"conservation={ev.get('conservation',False)}, "
@@ -770,11 +854,13 @@ ENRICHMENT + CONSERVATION + FUNCTIONAL ANNOTATIONS (per-residue):
 {chr(10).join(conservation_lines) if conservation_lines else 'No enrichment/conservation data available.'}
 
 IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO mention:
-- enrichment fold vs whole protein (if available)
+- Approximate interaction energy (LJ+Coulomb, kcal/mol) — describe as qualitative ranking
+- Flexibility classification (rigid/normal/flexible) from B-factor analysis
 - UniProt functional annotations (if available) — cite exact feature type and description
-- conservation/blosum proxy score and what it suggests
+- BLOSUM62 substitution tolerance proxy — describe as substitution-tolerance, NOT evolutionary conservation
 - Explicitly state when functional/conservation data is MISSING (e.g. "no UniProt annotation available for this residue").
 - Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
+- Do NOT describe approximate LJ+Coulomb scores as binding affinities or ΔG predictions.
 
 LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
 """
@@ -819,10 +905,11 @@ LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
                     data_block += f"Kd = {kd}\n"
                 data_block += (
                     f"Source: {prodigy.get('source','Prodigy')}. "
-                    "NOTE: This is a predicted value from a statistical model trained on "
-                    "experimental binding data. Use cautiously — not an experimental measurement. "
-                    "Cite as 'predicted' not 'measured'. In Section A and F, mention "
-                    "the predicted affinity with appropriate caution.\n\n"
+                    "NOTE: This is a STATISTICAL PREDICTION, not an experimental measurement. "
+                    "ALWAYS label it as 'predicted' (not 'measured'). "
+                    "In Section A, mention it as: 'Prodigy predicts ΔG ≈ X kcal/mol (Kd ≈ Y).' "
+                    "In Section F, use it qualitatively to contextualize the binding model. "
+                    "In Section G, note that predicted affinity is not experimentally validated.\n\n"
                 )
 
         data_block += f"""INTERACTION ENERGY DECOMPOSITION (Lennard-Jones 12-6 + Coulomb, distance-dependent dielectric ε=4r):
@@ -853,13 +940,15 @@ LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
             if energy_lines:
                 data_block += "\n".join(energy_lines) + "\n"
             data_block += (
-                "NOTE: These are APPROXIMATE gas-phase interaction energies using "
-                "simplified AMBER-like parameters. They indicate relative per-residue "
-                "contributions — residues with strongly negative total energies are "
-                "likely energetic anchors. Positive values indicate repulsive contacts "
-                "that may reflect steric clashes or parameter limitations. "
-                "In Section C and D, mention which residues are the dominant energetic "
-                "contributors based on these values.\n\n"
+                "NOTE: These are APPROXIMATE interaction energies (simplified LJ 12-6 + "
+                "Coulomb with distance-dependent dielectric ε=4r, coarse partial charges). "
+                "They provide QUALITATIVE per-residue ranking — residues with strongly "
+                "negative total energies are likely energetic anchors. Positive values "
+                "may reflect steric clashes or charge-charge repulsion. "
+                "In Sections C and D, identify dominant energetic contributors BUT: "
+                "NEVER describe these as binding free energies, ΔG predictions, or "
+                "experimentally validated values. Use phrases like 'approximate energy "
+                "contribution', 'qualitative ranking', 'simplified LJ+Coulomb score'.\n\n"
             )
 
         data_block += f"""CONFIDENCE ASSESSMENT:
