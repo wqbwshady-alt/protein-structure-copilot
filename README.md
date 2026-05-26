@@ -1,153 +1,201 @@
 # Protein Structure Copilot
 
-Protein Structure Copilot is a small Flask web app for inspecting protein-ligand
-binding pockets from PDB files. It supports single-structure pocket analysis,
-WT/mutant pocket comparison, browser-based 3D visualization with 3Dmol.js, and
-optional DeepSeek-powered structural interpretation.
+**AI-Powered Structural Biology Platform** — Ligand pocket analysis, mutation impact assessment, evolutionary conservation, and geometric interaction detection with real-time 3D visualization.
+
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://protein-structure-copilot.onrender.com)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)](https://python.org)
+[![Flask](https://img.shields.io/badge/flask-3.0-lightgrey)](https://flask.palletsprojects.com)
+[![Tests](https://img.shields.io/badge/tests-58%20passed-green)]()
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Input[" Input "]
+        direction LR
+        PDB[PDB Upload]
+        RCSB[RCSB Fetch]
+    end
+
+    subgraph Pipeline[" Analysis Pipeline "]
+        direction LR
+        A[Ligand<br>Detection] --> B[Pocket<br>Contacts]
+        B --> C[Residue<br>Ranking]
+        C --> D1[Enrichment]
+        C --> D2[Flexibility]
+        C --> D3[Pi-stacking]
+        C --> D4[UniProt]
+        C --> D5[Conservation]
+    end
+
+    subgraph AI[" AI Engine "]
+        direction LR
+        E1[Interpretation] --> E2[Confidence]
+        E2 --> E3[Limitations]
+    end
+
+    subgraph Output[" Output "]
+        direction LR
+        F1[3D Viewer]
+        F2[TXT/JSON/CSV]
+        F3[PyMOL Script]
+    end
+
+    Input --> Pipeline --> AI --> Output
+```
 
 ## Features
 
-- Upload a PDB file and analyze residues within 5 A of a target ligand.
-- Classify contact residues as hydrophobic, polar, positive, negative, or other.
-- Label closest ligand-residue interaction lines as hydrophobic, polar / possible
-  H-bond, charged / electrostatic, or van der Waals contacts.
-- Show color-coded interaction lines and hotspot residues in the 3D viewer.
-- Run heuristic mutation scans such as `R273H`, `K120A`, or `Y220C` without
-  sidechain remodeling.
-- Compare WT and mutant structures to identify lost and gained pocket contacts.
-- Suggest detected ligand names when the requested ligand is missing.
-- Generate text reports and PyMOL scripts in `results/`.
-- Fall back to local rule-based interpretation when DeepSeek is unavailable.
+### Binding Site Characterization
+- Automatic ligand detection from PDB HETATM records
+- Pocket contact residue identification (5 A distance cutoff)
+- Multi-criteria residue ranking (distance, interaction type, chemistry, enrichment)
+- Interaction classification: hydrophobic, polar/H-bond, charged, van der Waals
 
-## Project Layout
+### Advanced Structural Analysis
+- **B-factor Flexibility** — Per-residue thermal displacement analysis. Classifies pocket residues as rigid, normal, flexible, or highly flexible relative to the whole-protein mean
+- **Pi-stacking Detection** — Geometric identification of pi-pi (face-to-face, edge-to-face, T-shaped) and cation-pi interactions among aromatic pocket residues (PHE, TYR, TRP, HIS)
+- **Statistical Enrichment** — Fisher exact test comparing pocket residue composition to whole-protein baseline
+- **UniProt Integration** — REST API functional annotations: active sites, binding sites, domains, mutagenesis data, natural variants, and post-translational modifications
 
-- `app.py`: Flask routes, upload handling, response rendering, downloads.
-- `analysis_core.py`: PDB parsing, distance calculation, residue classification,
-  pocket analysis, hotspot helpers.
-- `ai_client.py`: DeepSeek API call and local fallback interpretation.
-- `reports.py`: Text report, comparison report, and PyMOL script generation.
-- `services/mutation_scan.py`: Rule-based mutation parsing, residue lookup,
-  property comparison, and interaction impact estimation.
-- `templates/index.html`: Single-page UI and 3Dmol.js viewer logic.
-- `scripts/run_pipeline.py`: Command-line pocket analysis using the same core
-  logic as the web app.
-- `data/`: Example PDB files.
-- `uploads/`: Uploaded PDB files created by the web app.
-- `results/`: Generated reports and PyMOL scripts.
+### Mutation Analysis
+- Single point mutation scan with structural impact assessment
+- WT vs Mutant comparison with lost/gained contact visualization
+- Chain-specific residue indexing with insertion code handling
 
-## Setup
+### AI-Powered Interpretation
+- Structured multi-section interpretation: binding mode, key interactions, structural features, conservation, mutation implications, recommendations
+- Confidence assessment with reasoning and evidence provenance
+- Limitations and caveats with safety guardrails
 
-Create and activate a Python environment, then install dependencies:
+### 3D Visualization
+- 3Dmol.js interactive viewer with cartoon + stick + sphere rendering
+- Interaction distance lines with type-specific coloring
+- Hotspot focus, ligand focus, pocket surface toggle
+- Refined color scheme with desaturated ribbon and reduced visual noise
+
+### Export
+- Report (TXT), Data (JSON), Data (CSV), AI Report, PyMOL script
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.11+, Flask 3.0, Gunicorn |
+| AI/LLM | DeepSeek / OpenAI API compatible |
+| 3D Viewer | 3Dmol.js |
+| Frontend | Vanilla JS (ES5+), CSS Custom Properties, JetBrains Mono + DM Sans |
+| Data Sources | PDB format parser, UniProt REST API, ConSurf-DB |
+| Testing | pytest (58 tests) |
+| Deployment | Render |
+
+## Quick Start
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/wqbwshady-alt/protein-structure-copilot.git
+cd protein-structure-copilot
+
+# Optional: create virtual environment
+python3 -m venv .venv && source .venv/bin/activate
+
 pip install -r requirements.txt
-```
-
-To enable DeepSeek interpretation, create a `.env` file:
-
-```bash
-DEEPSEEK_API_KEY=your_api_key_here
-```
-
-The app still works without a valid key; it will show a local rule-based
-interpretation instead.
-
-## Run
-
-Local Flask development server:
-
-```bash
 python app.py
+# Open http://127.0.0.1:5000
 ```
 
-Open:
-
-```text
-http://127.0.0.1:5000
-```
-
-Debug mode is disabled by default. For local development, enable it explicitly:
+For AI interpretation, create a `.env` file with your API key:
 
 ```bash
-FLASK_DEBUG=1 python app.py
+DEEPSEEK_API_KEY=your_key_here
 ```
 
-Production-style local server:
+The app works without it — falls back to rule-based interpretation.
+
+## Recommended Test Cases
+
+| PDB ID | Ligand | Notes |
+|--------|--------|-------|
+| `1ATP` | `ATP` | PKA kinase, rich UniProt annotations, Domain + Binding site features |
+| `1HSG` | `MK1` | HIV protease, classic drug target, aromatic-rich pocket |
+| `2XIR` | `00J` | VEGFR2 kinase, Binding site + Mutagenesis annotations |
+| `3ERT` | `OHT` | Estrogen receptor, Domain annotation |
+| `1TSR` | `TSR` | p53 tumor suppressor, comprehensive annotation coverage |
+
+## Project Structure
+
+```
+protein-structure-copilot/
+├── app.py                  # Flask routes, analysis orchestration (~1000 lines)
+├── analysis_core.py        # PDB parser, pocket detection, residue ranking
+├── conservation.py         # UniProt REST API + BLOSUM62 + DBREF mapping
+├── consurf.py              # ConSurf-DB evolutionary conservation (2-step API)
+├── flexibility.py          # B-factor pocket flexibility analysis
+├── pi_stacking.py          # Pi-pi / cation-pi geometry detection
+├── ai_client.py            # LLM client for structured AI interpretation
+├── reports.py              # Report generation + analysis statistics
+│
+├── static/
+│   ├── css/main.css        # Complete design system
+│   └── js/
+│       ├── state.js         # Reactive application state management
+│       ├── api.js           # API client (analyze, compare, mutation_scan)
+│       ├── ligand.js        # Ligand detection + suggestion
+│       ├── upload.js        # Drop zones, file handling, structure sync
+│       ├── viewer.js        # 3Dmol.js viewer management
+│       └── copilot.js       # Mode switching, forms, progress, results
+│
+├── templates/
+│   └── index.html           # Single-page application shell
+│
+├── services/
+│   └── mutation_scan.py     # Point mutation structural analysis
+│
+├── tests/
+│   ├── test_analysis_core.py
+│   ├── test_conservation.py
+│   ├── test_consurf.py
+│   └── test_app.py
+│
+├── uploads/                 # Uploaded PDB files (runtime)
+├── results/                 # Generated reports (runtime)
+└── cache/                   # UniProt + ConSurf API cache (runtime)
+```
+
+## CLI Usage
 
 ```bash
-gunicorn app:app
-```
-
-`gunicorn.conf.py` binds to `0.0.0.0:$PORT`, defaulting to port `8000` when
-`PORT` is not set.
-
-The front-end viewer loads 3Dmol.js from a CDN, so the browser needs network
-access for 3D rendering.
-
-## Mutation Scan
-
-Use the Mutation Scan form to upload a PDB file, enter a ligand name, and provide
-a mutation such as:
-
-```text
-R273H
-K120A
-Y220C
-```
-
-The first version is heuristic: it does not perform sidechain remodeling,
-Rosetta/FoldX scoring, or mutant structure generation. It compares amino-acid
-properties and the current ligand interaction set to estimate possible changes
-in charge, polarity, hydrophobicity, aromaticity, sidechain size, interaction
-gain/loss, and binding stability.
-
-## CLI
-
-Pocket analysis:
-
-```bash
+# Pocket analysis
 python scripts/run_pipeline.py data/1HSG.pdb MK1
-```
 
-Mutation scan JSON output:
-
-```bash
+# Mutation scan with JSON output
 python scripts/run_pipeline.py data/1HSG.pdb MK1 --mutation D25A --chain-id A
 ```
 
-## Test
+## Testing
 
 ```bash
-python -m pytest
+python -m pytest                    # Run all tests
+python -m pytest tests/ -x -q       # Fast fail, quiet mode
 ```
 
-## Deploy To Render
+## Deployment
 
-1. Push this repository to GitHub.
-2. In Render, create a new Web Service from the GitHub repository.
-3. Use these settings:
+[Render](https://render.com) free tier:
 
-```text
-Build Command: pip install -r requirements.txt
-Start Command: gunicorn app:app
-```
+1. Push to GitHub
+2. Create Web Service → connect repo
+3. Settings: Build `pip install -r requirements.txt`, Start `gunicorn app:app`
+4. Add env var `DEEPSEEK_API_KEY` (optional)
 
-4. Add environment variables as needed:
+`uploads/`, `results/`, and `cache/` directories are created automatically at startup.
 
-```text
-DEEPSEEK_API_KEY=your_api_key_here
-```
+## Academic Context
 
-`uploads/` and `results/` are created automatically at app startup. They are
-ignored by Git and should be treated as ephemeral runtime storage on Render.
+Developed as part of a structural bioinformatics innovation project (大创) and portfolio piece for graduate school applications in AI + computational biology.
 
-## Suggested Next Development Steps
+The platform integrates multiple analytical dimensions — geometric, statistical, evolutionary, and AI-driven — into a unified research tool for multi-faceted binding site characterization.
 
-- Add richer structure chemistry detection, such as hydrogen bonds, salt bridges,
-  aromatic contacts, and ligand atom typing.
-- Add result history instead of writing only downloadable text artifacts.
-- Move long-running analysis and AI calls into background jobs for larger PDBs.
-- Add front-end states for upload progress, invalid ligand names, and empty
-  interaction sets.
+## License
+
+MIT

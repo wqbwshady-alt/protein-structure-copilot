@@ -606,11 +606,56 @@
     if (toggle) toggle.addEventListener('click', function () { document.body.classList.toggle('dark'); });
   }
 
+  /* ---- Demo button ---- */
+  function _initDemoButton() {
+    var btn = document.getElementById('demo-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      // Fill PDB ID and ligand
+      var pdbInput = document.getElementById('pdb-id-input');
+      var ligandInput = document.getElementById('ligand-analyze');
+      if (pdbInput) pdbInput.value = '1ATP';
+      if (ligandInput) ligandInput.value = 'ATP';
+
+      btn.textContent = 'Loading example...';
+      btn.disabled = true;
+
+      // Fetch 1ATP from RCSB
+      var fetchBtn = document.getElementById('fetch-pdb-btn');
+      if (fetchBtn) {
+        fetchBtn.click();
+      }
+
+      // Wait for fetch to complete, then analyze
+      var checkReady = setInterval(function () {
+        var af = AppState.get('analysis');
+        if (af && af.ready) {
+          clearInterval(checkReady);
+          var form = document.getElementById('form-single');
+          if (form) {
+            var submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+            form.dispatchEvent(submitEvent);
+          }
+          btn.textContent = 'Try with Example';
+          btn.disabled = false;
+        }
+      }, 300);
+
+      // Timeout after 15s
+      setTimeout(function () {
+        clearInterval(checkReady);
+        btn.textContent = 'Try with Example';
+        btn.disabled = false;
+      }, 15000);
+    });
+  }
+
   /* ---- Init ---- */
   function init() {
     _initModeSelector();
     _initForms();
     _initDarkMode();
+    _initDemoButton();
     _refreshStats();
 
     // Server-rendered results

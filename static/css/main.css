@@ -699,6 +699,30 @@ body::before {
   box-shadow: none;
 }
 
+/* Demo button */
+.demo-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(91,155,213,0.25);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--ease-out);
+  font-family: 'DM Sans', sans-serif;
+}
+.demo-btn:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+}
+.demo-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ============================================================
    COMPARISON INPUTS (2nd structure)
    ============================================================ */
