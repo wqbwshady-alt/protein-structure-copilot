@@ -862,7 +862,36 @@ IMPORTANT: In Section D (Residue-Level Evidence), for each top residue, ALSO men
 - Do NOT confuse BLOSUM62 proxy with real evolutionary conservation.
 - Do NOT describe approximate LJ+Coulomb scores as binding affinities or ΔG predictions.
 
-LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
+HYDROGEN BOND GEOMETRY (Baker-Hubbard criteria: H···A<2.5A, D···A<3.5A, angle>120°):
+"""
+
+        # Build H-bond block
+        hb = data.get("hbonds", {})
+        if hb and hb.get("summary", {}).get("total", 0) > 0:
+            s = hb["summary"]
+            data_block += (
+                f"Total H-bonds detected: {s['total']} "
+                f"(validated: {s['validated']}, possible: {s['possible']}, "
+                f"protein-protein: {s['protein_protein']}, "
+                f"protein-ligand: {s['protein_ligand']})\n"
+            )
+            pl_hbonds = hb.get("protein_ligand", [])
+            if pl_hbonds:
+                data_block += "Protein-ligand H-bonds:\n"
+                for h in pl_hbonds[:10]:
+                    data_block += (
+                        f"- {h['donor_key']}:{h['donor_atom']} -> "
+                        f"{h['acceptor_key']}:{h['acceptor_atom']} "
+                        f"(D···A={h['d_a_dist']}A, H···A={h['h_a_dist']}A, "
+                        f"angle={h['angle']}°, {h['category']})\n"
+                    )
+            data_block += (
+                "In Section C, distinguish geometry-validated H-bonds from "
+                "'possible' H-bonds (marginal geometry) and non-specific "
+                "polar contacts. Cite D···A distances and D-H···A angles.\n\n"
+            )
+
+        data_block += f"""LIGAND PHYSICOCHEMICAL PROFILE (RDKit):
 """
 
         # Build ligand profile block

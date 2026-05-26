@@ -1075,6 +1075,21 @@ class SafetyGuardrails:
                     f"{r['min_distance']}A — {types}{energy_note}{flex_note}"
                 )
 
+            # H-bond mention
+            hb = data.get("hbonds", {})
+            if hb and hb.get("summary", {}).get("total", 0) > 0:
+                s = hb["summary"]
+                sections.append(
+                    f"[S] H-bonds: {s['total']} total "
+                    f"({s['validated']} validated, {s['possible']} possible, "
+                    f"{s['protein_ligand']} protein-ligand)"
+                )
+                for h in hb.get("protein_ligand", [])[:3]:
+                    sections.append(
+                        f"[S] H-bond: {h['donor_key']}:{h['donor_atom']} -> "
+                        f"acceptor ({h['d_a_dist']}A, {h['angle']}°, {h['category']})"
+                    )
+
             # Pi-stacking mention
             pi_data = data.get("pi_stacking", {})
             if pi_data:

@@ -403,6 +403,24 @@
         h += '</div>';
       }
 
+      // Hydrogen bond geometry card
+      var hb = data.hbonds || {};
+      if (hb.total > 0) {
+        h += '<div class="result-card" style="margin-bottom:8px;">' +
+          '<div class="result-card-header">' +
+            '<span class="card-icon">&#x1F4CC;</span> Hydrogen Bonds (Baker-Hubbard)' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">' +
+            'Total: <strong>' + hb.total + '</strong>' +
+            ' &mdash; Validated: <strong style="color:#10b981;">' + (hb.validated || 0) + '</strong>' +
+            ' &middot; Possible: <strong style="color:#f59e0b;">' + (hb.possible || 0) + '</strong>' +
+            ' &middot; Protein-Ligand: <strong>' + (hb.protein_ligand || 0) + '</strong>' +
+          '</div>' +
+          '<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">' +
+            'H···A &lt; 2.5A, D···A &lt; 3.5A, D-H···A &gt; 120° (validated) / &gt; 90° (possible). H positions estimated from heavy-atom geometry.' +
+          '</div></div>';
+      }
+
       // Prodigy affinity card
       var prod = data.prodigy || {};
       if (prod.delta_g !== undefined || prod.kd !== undefined) {
