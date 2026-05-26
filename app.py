@@ -657,6 +657,8 @@ def _build_analyze_result(pdb_path, filename, ligand_name):
         "enrichment": enrichment,
         "confidence": confidence,
         "limitations": limitations,
+        "flexibility": flexibility_result,
+        "pi_stacking": pi_stacking_result,
     })
     ai_report_text = "\n\n".join(
         f"{k}\n{v}" for k, v in ai_sections.items()

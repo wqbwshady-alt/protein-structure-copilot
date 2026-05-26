@@ -1019,10 +1019,30 @@ class SafetyGuardrails:
             for r in ranked[:3]:
                 ev = r.get("interaction_evidence", [])
                 types = ", ".join(sorted(set(e["type"] for e in ev)))
+                flex_info = r.get("flexibility", {})
+                flex_note = ""
+                if flex_info.get("classification") in ("rigid", "flexible", "highly_flexible"):
+                    flex_note = f" [{flex_info['classification']} B={flex_info.get('mean_b','?')}]"
                 sections.append(
                     f"[S] {r['residue_key']}: {len(ev)} contact(s) at "
-                    f"{r['min_distance']}A — {types}"
+                    f"{r['min_distance']}A — {types}{flex_note}"
                 )
+
+            # Pi-stacking mention
+            pi_data = data.get("pi_stacking", {})
+            if pi_data:
+                pi_pi = pi_data.get("pi_pi_interactions", [])
+                for p in pi_pi[:3]:
+                    sections.append(
+                        f"[S] Pi-pi ({p.get('type','?')}): {p.get('residue1','?')} <-> "
+                        f"{p.get('residue2','?')} ({p.get('distance','?')}A, {p.get('angle','?')}deg)"
+                    )
+                cat_pi = pi_data.get("cation_pi_interactions", [])
+                for c in cat_pi[:3]:
+                    sections.append(
+                        f"[S] Cation-pi: {c.get('cationic_residue','?')} -> "
+                        f"{c.get('aromatic_residue','?')} ({c.get('distance','?')}A)"
+                    )
         else:
             sections.append("[S] Insufficient structural evidence — no close "
                             "contacts detected within 4.0A cutoff.")
@@ -1045,11 +1065,49 @@ class SafetyGuardrails:
             sections.append("[S] N/A — single-structure analysis. No mutation data provided.")
 
         sections.append("## F. Biological Interpretation")
-        sections.append(
+        interp_parts = [
             "[I] The structural evidence suggests a binding interface consistent "
-            "with geometric pocket-ligand complementarity. Specific functional roles "
-            "cannot be assigned from structural data alone."
+            "with geometric pocket-ligand complementarity."
+        ]
+
+        # Flexibility context
+        flex = data.get("flexibility", {})
+        ps = flex.get("pocket_summary", {}) if flex else {}
+        if ps.get("classification") and ps["classification"] != "no_data":
+            ratio = ps.get("flexibility_ratio", 1.0)
+            if ratio and ratio < 0.8:
+                interp_parts.append(
+                    f"[S] The pocket is more rigid than the protein average "
+                    f"(B-factor ratio {ratio}x), suggesting a pre-organized "
+                    f"binding site suitable for structure-based drug design."
+                )
+            elif ratio and ratio > 1.3:
+                interp_parts.append(
+                    f"[H] The pocket shows above-average flexibility "
+                    f"(B-factor ratio {ratio}x), consistent with potential "
+                    f"induced-fit binding mechanisms."
+                )
+            else:
+                interp_parts.append(
+                    f"[S] Pocket flexibility is within normal range "
+                    f"(B-factor ratio {ratio}x), typical of crystalline binding sites."
+                )
+
+        # Pi-stacking context
+        pi_data = data.get("pi_stacking", {})
+        if pi_data:
+            pi_pi = pi_data.get("pi_pi_interactions", [])
+            if pi_pi:
+                interp_parts.append(
+                    f"[S] {len(pi_pi)} pi-pi interaction(s) detected among pocket "
+                    f"aromatic residues. These may provide additional stabilization "
+                    f"for aromatic ligand moieties through stacking geometry."
+                )
+
+        interp_parts.append(
+            "[I] Specific functional roles cannot be assigned from structural data alone."
         )
+        sections.append(" ".join(interp_parts))
 
         sections.append("## G. Limitations")
         sections.append(lim.get("disclaimer", MANDATORY_DISCLAIMER))

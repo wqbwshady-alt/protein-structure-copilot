@@ -616,13 +616,13 @@ SYSTEM_PROMPT = (
 )
 
 _STRUCTURED_SECTIONS = [
-    ("A. Executive Summary", "2-3 sentence overview: top-ranked residues, dominant interaction modes, overall confidence level from the data provided"),
-    ("B. Pocket Physicochemical Profile", "hydrophobic/polar/charged residue composition, what the chemical environment implies for ligand binding"),
-    ("C. Key Interaction Network", "which residues are likely key anchors (cite their scores and distances), which interaction types dominate, what each type suggests about stabilization mechanism"),
-    ("D. Residue-Level Evidence", "for each of the top 5 ranked residues, state: chain ID, residue name+number, score, min distance (A), interaction types. Use the IMPORTANT RESIDUES data provided below — do not fabricate scores or distances"),
+    ("A. Executive Summary", "2-3 sentence overview: top-ranked residues, dominant interaction modes, overall confidence level, flexibility and aromatic interaction highlights if available"),
+    ("B. Pocket Physicochemical Profile", "hydrophobic/polar/charged residue composition, what the chemical environment implies for ligand binding. Include B-factor flexibility context if provided"),
+    ("C. Key Interaction Network", "which residues are likely key anchors (cite their scores and distances), which interaction types dominate. Include any detected pi-stacking or cation-pi interactions with their geometric details"),
+    ("D. Residue-Level Evidence", "for each of the top 5 ranked residues, state: chain ID, residue name+number, score, min distance (A), interaction types, flexibility classification. Use the IMPORTANT RESIDUES data provided below — do not fabricate scores or distances"),
     ("E. Mutation Impact Assessment", "if mutation data present: state confidence level with reasoning based on provided data; if no mutation data: explicitly state N/A"),
-    ("F. Biological Interpretation", "what the pocket architecture suggests about binding mode; use cautious language: suggests/may indicate/is consistent with; cite specific residue evidence"),
-    ("G. Limitations", "list limitations based on the LIMITATIONS data provided: static structure, no energetics, no dynamics, geometric classification only, no conservation, no MD"),
+    ("F. Biological Interpretation", "what the pocket architecture suggests about binding mode; discuss flexibility implications for induced fit or rigid docking; discuss aromatic interactions; use cautious language: suggests/may indicate/is consistent with; cite specific residue evidence"),
+    ("G. Limitations", "list limitations based on the LIMITATIONS data provided: static structure, no energetics, no dynamics, geometric classification only, B-factor as flexibility proxy, pi-stacking is purely geometric"),
 ]
 
 _STRUCTURED_RULES = (
@@ -634,10 +634,11 @@ _STRUCTURED_RULES = (
     "5. Use cautious language: suggests, may indicate, is consistent with, possibly, potentially, appears to\n"
     "6. For Section E: use the confidence level and reasoning FROM THE PROVIDED DATA\n"
     "7. Each section: 2-5 sentences, concise and substantive\n"
-    "8. Use correct structural biology terminology: salt bridge, pi-stacking, H-bond network, hydrophobic core, van der Waals packing\n"
+    "8. Use correct structural biology terminology: salt bridge, pi-stacking, H-bond network, hydrophobic core, van der Waals packing, B-factor, induced fit\n"
     "9. For Section D: USE THE IMPORTANT RESIDUES DATA below. Do not invent residue names or scores.\n"
-    "10. End Section G with the disclaimer: 'This is a structural hypothesis based on geometric distance criteria from a static PDB structure. It does not constitute a validated energetic prediction.'\n"
-    "11. Total response under 500 words"
+    "10. When B-factor and pi-stacking data are provided: incorporate them. Rigid residues (low B-factor) suggest stable anchors. Flexible residues may allow induced fit. Pi-pi interactions stabilize aromatic ligand binding.\n"
+    "11. End Section G with the disclaimer: 'This is a structural hypothesis based on geometric distance criteria from a static PDB structure. It does not constitute a validated energetic prediction.'\n"
+    "12. Total response under 500 words"
 )
 
 
@@ -780,6 +781,59 @@ CONFIDENCE ASSESSMENT:
 
 LIMITATIONS:
 {limitations_line}"""
+
+        # Build flexibility summary block
+        flexibility = data.get("flexibility", {})
+        if flexibility and flexibility.get("pocket_summary"):
+            ps = flexibility["pocket_summary"]
+            flex_block = (
+                f"\n\nB-FACTOR FLEXIBILITY ANALYSIS:\n"
+                f"Pocket mean B-factor: {ps.get('mean_b', '?')} vs protein mean: {ps.get('global_mean_b', '?')} "
+                f"(ratio: {ps.get('flexibility_ratio', '?')}x). "
+                f"Classification: {ps.get('classification', '?')} — {ps.get('label', '')}. "
+                f"Rigid residues: {ps.get('rigid_count', 0)}, "
+                f"Flexible residues: {ps.get('flexible_count', 0)}, "
+                f"Highly flexible: {ps.get('highly_flexible_count', 0)}."
+            )
+            # Per-residue flexibility
+            flex_details = []
+            per_res = flexibility.get("per_residue", {})
+            for key, v in per_res.items():
+                if v.get("classification") != "normal":
+                    flex_details.append(f"{key}: {v.get('classification', '?')} (B={v.get('mean_b', '?')}, z={v.get('z_score', '?')})")
+            if flex_details:
+                flex_block += "\nNon-normal flexibility residues: " + "; ".join(flex_details)
+            data_block += flex_block
+
+        # Build pi-stacking summary block
+        pi_data = data.get("pi_stacking", {})
+        if pi_data:
+            pi_pi = pi_data.get("pi_pi_interactions", [])
+            cat_pi = pi_data.get("cation_pi_interactions", [])
+            aromatic_found = pi_data.get("aromatic_residues_found", [])
+            if pi_pi or cat_pi or aromatic_found:
+                pi_block = "\n\nPI-STACKING / CATION-PI ANALYSIS:"
+                if aromatic_found:
+                    pi_block += f"\nAromatic residues in pocket: {', '.join(aromatic_found)}"
+                if pi_pi:
+                    pi_block += f"\nDetected {len(pi_pi)} pi-pi interaction(s):"
+                    for p in pi_pi:
+                        pi_block += f"\n- {p['type']}: {p['residue1']} <-> {p['residue2']} ({p['distance']}A, {p['angle']}deg)"
+                if cat_pi:
+                    pi_block += f"\nDetected {len(cat_pi)} cation-pi interaction(s):"
+                    for c in cat_pi:
+                        pi_block += f"\n- {c['cationic_residue']} -> {c['aromatic_residue']} ({c['distance']}A)"
+                if not pi_pi:
+                    pi_block += "\nNo pi-pi interactions detected within 6.5A threshold."
+                if not cat_pi:
+                    pi_block += "\nNo cation-pi interactions detected within 6.0A threshold."
+                pi_block += (
+                    "\nIMPORTANT: In Section C (Key Interaction Network), mention any detected pi-stacking "
+                    "or cation-pi interactions. In Section F (Biological Interpretation), discuss how "
+                    "aromatic interactions may stabilize the binding pose. "
+                    "Use the detected geometric data (distance, angle) — do not fabricate."
+                )
+                data_block += pi_block
 
     elif mode == "mutation":
         m = data.get("mutation_result", {})
